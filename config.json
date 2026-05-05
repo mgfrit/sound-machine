@@ -52,7 +52,7 @@
     "bt_connected": "sounds/system/bt_connected.wav"
   },
   "bluetooth": {
-    "saved_device_address": null,
+    "saved_device_address": "F4:4E:FD:1B:D4:97",
     "scan_timeout": 10
   },
   "audio": {

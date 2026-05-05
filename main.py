@@ -1,11 +1,20 @@
 import json
+import os
 import signal
 from pathlib import Path
+
+os.environ.setdefault("SDL_AUDIODRIVER", "pulse")
+
+from gpiozero import Device
+from gpiozero.pins.lgpio import LGPIOFactory
+Device.pin_factory = LGPIOFactory()
+
 import pygame
 
 from state_machine import StateMachine
 from audio_player import AudioPlayer
 from button_handler import ButtonHandler
+from bluetooth_manager import BluetoothManager
 
 def load_config(path="config.json"):
     with open(path) as f:
@@ -18,8 +27,23 @@ def main():
     player = AudioPlayer(volumes=config["audio"])
     state_machine = StateMachine()
 
+    bt_sound_path = config["system_sounds"].get("bt_connected")
+
+    def on_bt_connected():
+        if bt_sound_path and Path(bt_sound_path).exists():
+            player.play_system_sound(bt_sound_path)
+
+    bt_manager = BluetoothManager(
+        config_path="config.json",
+        on_connected=on_bt_connected,
+    )
+
     def on_bt_held():
-        print("Bluetooth button held — BT logic will be added in Phase 2")
+        bt_cfg = config["bluetooth"]
+        bt_manager.initiate(
+            saved_address=bt_cfg.get("saved_device_address"),
+            scan_timeout=bt_cfg.get("scan_timeout", 10),
+        )
 
     ButtonHandler(
         config=config,
