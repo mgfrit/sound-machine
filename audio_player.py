@@ -7,7 +7,11 @@ class AudioPlayer:
     def __init__(self, volumes):
         pygame.mixer.init(frequency=44100, channels=2, buffer=512)
         pygame.mixer.set_num_channels(8)
-        self._volumes = volumes
+        self._volumes = {
+            "music": volumes.get("music_volume", 0.8),
+            "ambiance": volumes.get("ambiance_volume", 0.7),
+            "effects": volumes.get("effects_volume", 1.0),
+        }
         self._music_ch = pygame.mixer.Channel(self.MUSIC_CH)
         self._ambiance_ch = pygame.mixer.Channel(self.AMBIANCE_CH)
 

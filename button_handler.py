@@ -5,6 +5,8 @@ class ButtonHandler:
         self._sm = state_machine
         self._player = audio_player
         self._sounds = config["sounds"]
+        self._active_music = None
+        self._active_ambiance = None
         gpio = config["gpio"]
 
         self._group_buttons = [
@@ -42,8 +44,18 @@ class ButtonHandler:
             return
         path = sounds_list[sound_index]
         if group_name == "music":
-            self._player.play_music(path)
+            if self._active_music == sound_index:
+                self._player.stop_music()
+                self._active_music = None
+            else:
+                self._player.play_music(path)
+                self._active_music = sound_index
         elif group_name == "ambiance":
-            self._player.play_ambiance(path)
+            if self._active_ambiance == sound_index:
+                self._player.stop_ambiance()
+                self._active_ambiance = None
+            else:
+                self._player.play_ambiance(path)
+                self._active_ambiance = sound_index
         elif group_name == "effects":
             self._player.play_effect(path)
