@@ -1,27 +1,63 @@
 {
- "gpio": {
-  "group_buttons": [22, 27, 17],
-  "sound_buttons": [13, 6, 5, 16, 26, 19],
-  "bluetooth_button": 23,
-  "bluetooth_hold_time": 2.0,
-  "button_bounce_time": 0.05
- },
- "groups": [music", "ambiance", "effects]",
- "sounds": {
-  "music": [null, null, null, null, null, null],
-  "ambiance": [null, null, null, null, null, null],
-  "effects": [null, null, null, null, null, null]
- },
- "system_sounds": {
-  "bt_connected": "sounds/system/bt_connected.wav"
- },
- "bluetooth": {
-  "saved_device_address": null,
-  "scan_timeout": 10
- },
- "audio": {
-  "music_volume": 0.8,
-  "ambiance_volume": 0.7,
-  "effects_volume": 1.0
- }
+  "gpio": {
+    "group_buttons": [
+      22,
+      27,
+      17
+    ],
+    "sound_buttons": [
+      13,
+      6,
+      5,
+      16,
+      26,
+      19
+    ],
+    "bluetooth_button": 23,
+    "bluetooth_hold_time": 2.0,
+    "button_bounce_time": 0.05
+  },
+  "groups": [
+    "music",
+    "ambiance",
+    "effects"
+  ],
+  "sounds": {
+    "music": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "ambiance": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "effects": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "system_sounds": {
+    "bt_connected": "sounds/system/bt_connected.wav"
+  },
+  "bluetooth": {
+    "saved_device_address": null,
+    "scan_timeout": 10
+  },
+  "audio": {
+    "music_volume": 0.8,
+    "ambiance_volume": 0.7,
+    "effects_volume": 1.0
+  }
 }
