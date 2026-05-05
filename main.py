@@ -1,6 +1,7 @@
 import json
 import os
 import signal
+import sys
 from pathlib import Path
 
 os.environ.setdefault("SDL_AUDIODRIVER", "pulse")
@@ -45,12 +46,24 @@ def main():
             scan_timeout=bt_cfg.get("scan_timeout", 10),
         )
 
-    ButtonHandler(
+    handler = ButtonHandler(
         config=config,
         state_machine=state_machine,
         audio_player=player,
         on_bt_held=on_bt_held,
     )
+
+    def shutdown(signum, frame):
+        print("Shutting down cleanly...")
+        for btn in handler._group_buttons + handler._sound_buttons:
+            btn.close()
+        handler._bt_button.close()
+        Device.pin_factory.close()
+        pygame.quit()
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, shutdown)
+    signal.signal(signal.SIGINT, shutdown)
 
     print("D&D Sound Machine running. Press Ctrl+C to exit.")
     signal.pause()
