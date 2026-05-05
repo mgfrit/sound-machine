@@ -12,12 +12,8 @@ class StateMachine:
 
     def select_group(self, index):
         group = Group(index)
-        if self.active_group == group:
-            self.active_group = None
-            self.state = "IDLE"
-        else:
-            self.active_group = group
-            self.state = "GROUP_SELECTED"
+        self.active_group = group
+        self.state = "GROUP_SELECTED"
 
     def select_sound(self, index):
         if self.active_group is None:

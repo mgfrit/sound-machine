@@ -24,15 +24,15 @@
   ],
   "sounds": {
     "music": [
-      "sounds/music/test_music.wav",
-      null,
+      "sounds/music/Spikeroog.ogg",
+      "sounds/music/Spikeroog.ogg",
       null,
       null,
       null,
       null
     ],
     "ambiance": [
-      "sounds/ambiance/test_ambiance.wav",
+      "sounds/ambiance/rainfall.ogg",
       null,
       null,
       null,
@@ -40,7 +40,7 @@
       null
     ],
     "effects": [
-      "sounds/effects/test_effect.wav",
+      "sounds/effects/sword.wav",
       null,
       null,
       null,

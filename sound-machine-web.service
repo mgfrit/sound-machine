@@ -1,0 +1,14 @@
+[Unit]
+Description=D&D Sound Machine Web UI
+After=network.target sound-machine.service
+
+[Service]
+ExecStart=/home/admin/sound-machine/venv/bin/python3 /home/admin/sound-machine/web_app.py
+WorkingDirectory=/home/admin/sound-machine
+Restart=on-failure
+RestartSec=5
+User=admin
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

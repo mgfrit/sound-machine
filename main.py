@@ -11,28 +11,38 @@ from gpiozero.pins.lgpio import LGPIOFactory
 Device.pin_factory = LGPIOFactory()
 
 import pygame
-
 from state_machine import StateMachine
 from audio_player import AudioPlayer
 from button_handler import ButtonHandler
 from bluetooth_manager import BluetoothManager
 
+
 def load_config(path="config.json"):
     with open(path) as f:
         return json.load(f)
+
 
 def main():
     config = load_config()
     pygame.init()
 
     player = AudioPlayer(volumes=config["audio"])
+
+    # Music streams via pygame.mixer.music — only preload ambiance, effects, system sounds
+    preload_paths = (
+        [p for p in config["sounds"].get("ambiance", []) if p] +
+        [p for p in config["sounds"].get("effects", []) if p]
+    )
+    bt_sound = config["system_sounds"].get("bt_connected")
+    if bt_sound:
+        preload_paths.append(bt_sound)
+    player.preload(preload_paths)
+
     state_machine = StateMachine()
 
-    bt_sound_path = config["system_sounds"].get("bt_connected")
-
     def on_bt_connected():
-        if bt_sound_path and Path(bt_sound_path).exists():
-            player.play_system_sound(bt_sound_path)
+        if bt_sound and Path(bt_sound).exists():
+            player.play_system_sound(bt_sound)
 
     bt_manager = BluetoothManager(
         config_path="config.json",
@@ -54,7 +64,6 @@ def main():
     )
 
     def shutdown(signum, frame):
-        print("Shutting down cleanly...")
         for btn in handler._group_buttons + handler._sound_buttons:
             btn.close()
         handler._bt_button.close()
@@ -67,6 +76,7 @@ def main():
 
     print("D&D Sound Machine running. Press Ctrl+C to exit.")
     signal.pause()
+
 
 if __name__ == "__main__":
     main()

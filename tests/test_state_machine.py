@@ -12,12 +12,12 @@ def test_pressing_group_button_sets_group():
     assert sm.active_group == Group.MUSIC
     assert sm.state == "GROUP_SELECTED"
 
-def test_pressing_same_group_deselects():
+def test_pressing_same_group_keeps_active():
     sm = StateMachine()
     sm.select_group(0)
     sm.select_group(0)
-    assert sm.active_group is None
-    assert sm.state == "IDLE"
+    assert sm.active_group == Group.MUSIC
+    assert sm.state == "GROUP_SELECTED"
 
 def test_pressing_different_group_switches():
     sm = StateMachine()

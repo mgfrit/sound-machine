@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>D&D Sound Machine</title>
+  <style>
+    body { font-family: sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; background: #1a1a2e; color: #eee; }
+    h1 { color: #e94560; }
+    h2 { color: #a8a8d0; border-bottom: 1px solid #333; padding-bottom: 0.3rem; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1.5rem; }
+    .slot { background: #16213e; border: 1px solid #333; border-radius: 8px; padding: 0.75rem; }
+    .slot label { display: block; font-size: 0.75rem; color: #888; margin-bottom: 0.4rem; }
+    .slot select { width: 100%; background: #0f3460; color: #eee; border: none; padding: 0.3rem; border-radius: 4px; }
+    .upload-row { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; }
+    .upload-row select { background: #0f3460; color: #eee; border: none; padding: 0.4rem; border-radius: 4px; }
+    button { background: #e94560; color: #fff; border: none; padding: 0.5rem 1.2rem; border-radius: 6px; cursor: pointer; }
+    button:hover { background: #c73652; }
+    button.secondary { background: #333; }
+    button.secondary:hover { background: #555; }
+    #status { margin-top: 1rem; padding: 0.5rem 1rem; border-radius: 6px; display: none; }
+    #status.ok { background: #1a4a1a; color: #6f6; display: block; }
+    #status.err { background: #4a1a1a; color: #f66; display: block; }
+  </style>
+</head>
+<body>
+  <h1>D&D Sound Machine</h1>
+
+  <div id="groups"></div>
+
+  <h2>Upload Sound File</h2>
+  <div class="upload-row">
+    <select id="upload-group">
+      <option value="music">Music</option>
+      <option value="ambiance">Ambiance</option>
+      <option value="effects">Effects</option>
+    </select>
+    <input type="file" id="upload-file" accept=".wav,.ogg,.mp3">
+    <button onclick="uploadFile()">Upload</button>
+  </div>
+
+  <button class="secondary" onclick="restartService()">Restart Sound Machine</button>
+  <div id="status"></div>
+
+  <script>
+    let configData = {};
+    const GROUP_LABELS = { music: "Music", ambiance: "Ambiance", effects: "Effects" };
+
+    async function loadConfig() {
+      const res = await fetch("/api/config");
+      configData = await res.json();
+      renderGroups();
+    }
+
+    function renderGroups() {
+      const container = document.getElementById("groups");
+      container.innerHTML = "";
+      for (const [group, label] of Object.entries(GROUP_LABELS)) {
+        const section = document.createElement("div");
+        section.innerHTML = `<h2>${label}</h2>`;
+        const grid = document.createElement("div");
+        grid.className = "grid";
+        const slots = configData.sounds[group];
+        const available = configData.available[group];
+        slots.forEach((current, i) => {
+          const slot = document.createElement("div");
+          slot.className = "slot";
+          slot.innerHTML = `<label>Button ${i + 1}</label>`;
+          const sel = document.createElement("select");
+          sel.innerHTML = `<option value="">— none —</option>` +
+            available.map(f => `<option value="${f}" ${f === current ? "selected" : ""}>${f.split("/").pop()}</option>`).join("");
+          sel.onchange = () => remapSlot(group, i, sel.value || null);
+          slot.appendChild(sel);
+          grid.appendChild(slot);
+        });
+        section.appendChild(grid);
+        container.appendChild(section);
+      }
+    }
+
+    async function remapSlot(group, index, path) {
+      const res = await fetch(`/api/sounds/${group}/${index}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path }),
+      });
+      const data = await res.json();
+      showStatus(data.ok ? "Saved!" : `Error: ${data.error}`, data.ok ? "ok" : "err");
+    }
+
+    async function uploadFile() {
+      const group = document.getElementById("upload-group").value;
+      const fileInput = document.getElementById("upload-file");
+      if (!fileInput.files.length) { showStatus("Select a file first.", "err"); return; }
+      const form = new FormData();
+      form.append("file", fileInput.files[0]);
+      const res = await fetch(`/api/upload/${group}`, { method: "POST", body: form });
+      const data = await res.json();
+      if (data.ok) {
+        showStatus(`Uploaded: ${data.path}`, "ok");
+        await loadConfig();
+      } else {
+        showStatus(`Error: ${data.error}`, "err");
+      }
+    }
+
+    async function restartService() {
+      showStatus("Restarting...", "ok");
+      const res = await fetch("/api/restart", { method: "POST" });
+      const data = await res.json();
+      showStatus(data.ok ? "Restarted successfully." : `Error: ${data.error}`, data.ok ? "ok" : "err");
+    }
+
+    function showStatus(msg, cls) {
+      const el = document.getElementById("status");
+      el.textContent = msg;
+      el.className = cls;
+    }
+
+    loadConfig();
+  </script>
+</body>
+</html>
