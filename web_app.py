@@ -217,9 +217,18 @@ def wifi_connect():
         return jsonify({"error": "missing ssid"}), 400
     ssid = data["ssid"]
     password = data.get("password", "")
-    # Delete any existing profile so nmcli creates a fresh one with all
-    # required security properties (avoids "key-mgmt: property is missing" from stale profiles)
-    subprocess.run(["sudo", "nmcli", "connection", "delete", ssid], capture_output=True, text=True)
+    # Delete any existing profiles for this SSID by UUID (matching on the SSID
+    # field value rather than connection name avoids silently missing stale profiles
+    # whose name doesn't match the SSID, which causes "key-mgmt: property is missing")
+    lookup = subprocess.run(
+        ["sudo", "nmcli", "-t", "-f", "UUID,802-11-WIRELESS.SSID", "connection", "show"],
+        capture_output=True, text=True,
+    )
+    for line in lookup.stdout.strip().splitlines():
+        parts = line.split(":", 1)
+        if len(parts) == 2 and parts[1].replace("\\:", ":") == ssid:
+            subprocess.run(["sudo", "nmcli", "connection", "delete", "uuid", parts[0]],
+                           capture_output=True, text=True)
     cmd = ["sudo", "nmcli", "device", "wifi", "connect", ssid]
     if password:
         cmd += ["password", password]
