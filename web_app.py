@@ -39,6 +39,11 @@ def index():
     return send_from_directory("static", "index.html")
 
 
+@app.route("/wifi")
+def wifi_setup_page():
+    return send_from_directory("static", "wifi.html")
+
+
 @app.route("/api/config", methods=["GET"])
 def get_config():
     config = load_config()

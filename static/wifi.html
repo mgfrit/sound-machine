@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sound Machine — WiFi Setup</title>
+  <style>
+    body { font-family: sans-serif; max-width: 480px; margin: 40px auto; padding: 0 16px; background: #1a1a2e; color: #eee; }
+    h1 { font-size: 1.4rem; margin-bottom: 24px; }
+    button { background: #4a4e8a; color: #fff; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 1rem; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    ul { list-style: none; padding: 0; margin-top: 16px; }
+    li { padding: 10px 12px; margin: 4px 0; background: #2a2a4a; border-radius: 6px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+    li.selected { background: #4a4e8a; }
+    li:hover:not(.selected) { background: #32325a; }
+    .signal { color: #aaa; font-size: 0.85rem; white-space: nowrap; margin-left: 12px; }
+    input[type=password] { width: 100%; padding: 10px; margin: 14px 0 10px; border-radius: 6px; border: 1px solid #555; background: #2a2a4a; color: #eee; font-size: 1rem; box-sizing: border-box; }
+    #connectForm { margin-top: 12px; }
+    #status { margin-top: 16px; padding: 10px 14px; border-radius: 6px; display: none; }
+    #status.error { background: #5a1a1a; }
+    #status.success { background: #1a5a2a; }
+  </style>
+</head>
+<body>
+  <h1>WiFi Setup</h1>
+  <button id="scanBtn" onclick="scan()">Scan for networks</button>
+  <ul id="networkList"></ul>
+
+  <div id="connectForm" style="display:none">
+    <input type="password" id="password" placeholder="Password (leave blank for open networks)">
+    <button id="connectBtn" onclick="connect()">Connect &amp; Reboot</button>
+  </div>
+
+  <div id="status"></div>
+
+  <script>
+    let selectedSSID = null;
+
+    async function scan() {
+      const btn = document.getElementById('scanBtn');
+      const list = document.getElementById('networkList');
+      btn.disabled = true;
+      btn.textContent = 'Scanning…';
+      list.innerHTML = '';
+      document.getElementById('connectForm').style.display = 'none';
+      selectedSSID = null;
+
+      try {
+        const resp = await fetch('/api/wifi/scan');
+        const networks = await resp.json();
+        if (networks.length === 0) {
+          list.innerHTML = '<li style="cursor:default">No networks found — try scanning again.</li>';
+        } else {
+          networks.forEach(n => {
+            const li = document.createElement('li');
+            const lock = (n.security && n.security !== '--') ? '🔒 ' : '';
+            li.innerHTML = `<span>${n.ssid}</span><span class="signal">${lock}${n.signal}%</span>`;
+            li.onclick = () => selectNetwork(n.ssid, li);
+            list.appendChild(li);
+          });
+        }
+      } catch (e) {
+        showStatus('Scan failed: ' + e.message, true);
+      }
+
+      btn.disabled = false;
+      btn.textContent = 'Scan for networks';
+    }
+
+    function selectNetwork(ssid, el) {
+      document.querySelectorAll('#networkList li').forEach(li => li.classList.remove('selected'));
+      el.classList.add('selected');
+      selectedSSID = ssid;
+      document.getElementById('connectForm').style.display = 'block';
+      document.getElementById('password').focus();
+    }
+
+    async function connect() {
+      if (!selectedSSID) return;
+      const btn = document.getElementById('connectBtn');
+      const password = document.getElementById('password').value;
+      btn.disabled = true;
+      btn.textContent = 'Connecting…';
+
+      try {
+        const resp = await fetch('/api/wifi/connect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ssid: selectedSSID, password }),
+        });
+        const data = await resp.json();
+        if (data.ok) {
+          showStatus('Connected! Rebooting in a few seconds…', false);
+        } else {
+          showStatus('Failed: ' + (data.error || 'Unknown error'), true);
+          btn.disabled = false;
+          btn.textContent = 'Connect & Reboot';
+        }
+      } catch (e) {
+        showStatus('Error: ' + e.message, true);
+        btn.disabled = false;
+        btn.textContent = 'Connect & Reboot';
+      }
+    }
+
+    function showStatus(msg, isError) {
+      const el = document.getElementById('status');
+      el.textContent = msg;
+      el.className = isError ? 'error' : 'success';
+      el.style.display = 'block';
+    }
+  </script>
+</body>
+</html>
