@@ -10,6 +10,7 @@ class AudioPlayer:
             "music": volumes.get("music_volume", 0.8),
             "ambiance": volumes.get("ambiance_volume", 0.7),
             "effects": volumes.get("effects_volume", 1.0),
+            "system": volumes.get("system_sound_volume", 1.0),
         }
         self._ambiance_ch = pygame.mixer.Channel(self.AMBIANCE_CH)
         self._cache = {}
@@ -55,6 +56,7 @@ class AudioPlayer:
         if path is None:
             return
         sound = self._load(path)
+        sound.set_volume(self._volumes["system"])
         ch = pygame.mixer.find_channel(force=True)
         ch.play(sound)
 

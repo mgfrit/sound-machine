@@ -49,7 +49,7 @@
     ]
   },
   "system_sounds": {
-    "bt_connected": "sounds/system/bt_connected.wav"
+    "bt_connected": "sounds/system/bluetooth_success.wav"
   },
   "bluetooth": {
     "saved_device_address": "F4:4E:FD:1B:D4:97",
@@ -58,6 +58,7 @@
   "audio": {
     "music_volume": 0.8,
     "ambiance_volume": 0.7,
-    "effects_volume": 1.0
+    "effects_volume": 1.0,
+    "system_sound_volume": 1.0
   }
 }

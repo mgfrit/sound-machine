@@ -38,6 +38,10 @@ def main():
         preload_paths.append(bt_sound)
     player.preload(preload_paths)
 
+    # Play BT connected sound on boot if a device is already configured
+    if bt_sound and Path(bt_sound).exists() and config["bluetooth"].get("saved_device_address"):
+        player.play_system_sound(bt_sound)
+
     state_machine = StateMachine()
 
     def on_bt_connected():

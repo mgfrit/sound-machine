@@ -22,12 +22,17 @@ class BluetoothManager:
 
     def _run(self, saved_address, scan_timeout):
         try:
-            if saved_address and self._connect(saved_address):
-                self._trigger_connected(saved_address)
-                return
+            if saved_address:
+                result = self._connect(saved_address)
+                if result == "connected":
+                    self._trigger_connected(saved_address)
+                    return
+                elif result == "already_connected":
+                    return  # already connected, no sound
             devices = self._scan(scan_timeout)
             for device in devices:
-                if self._connect(device["address"]):
+                result = self._connect(device["address"])
+                if result == "connected":
                     self._trigger_connected(device["address"])
                     return
         finally:
@@ -49,15 +54,15 @@ class BluetoothManager:
         return devices
 
     def _connect(self, address):
-        commands = f"connect {address}\nexit\n"
         proc = subprocess.run(
-            ["bluetoothctl"],
-            input=commands,
-            capture_output=True,
-            text=True,
-            timeout=15
+            ["bluetoothctl", "connect", address],
+            capture_output=True, text=True, timeout=15
         )
-        return "Connection successful" in proc.stdout or "Connected: yes" in proc.stdout
+        if "Connection successful" in proc.stdout:
+            return "connected"
+        if "Already connected" in proc.stdout or "Connected: yes" in proc.stdout:
+            return "already_connected"
+        return None
 
     def _trigger_connected(self, address):
         self._save_device(address)
