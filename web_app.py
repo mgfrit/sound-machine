@@ -132,7 +132,7 @@ def _schedule_reboot():
 
 @app.route("/api/wifi/connect", methods=["POST"])
 def wifi_connect():
-    data = request.get_json()
+    data = request.get_json(silent=True)
     if not data or "ssid" not in data:
         return jsonify({"error": "missing ssid"}), 400
     ssid = data["ssid"]
