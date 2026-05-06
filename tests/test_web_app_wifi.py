@@ -77,8 +77,8 @@ def test_wifi_connect_success_calls_nmcli_and_reboots(client):
     assert resp.status_code == 200
     assert resp.get_json()["ok"] is True
     mock_run.assert_has_calls([
-        call(["nmcli", "connection", "delete", "HomeNetwork"], capture_output=True, text=True),
-        call(["nmcli", "device", "wifi", "connect", "HomeNetwork", "password", "secret"],
+        call(["sudo", "nmcli", "connection", "delete", "HomeNetwork"], capture_output=True, text=True),
+        call(["sudo", "nmcli", "device", "wifi", "connect", "HomeNetwork", "password", "secret"],
              capture_output=True, text=True, timeout=30),
     ])
     mock_reboot.assert_called_once()
@@ -93,8 +93,8 @@ def test_wifi_connect_open_network_omits_password(client):
         resp = client.post("/api/wifi/connect", json={"ssid": "OpenNetwork"})
     assert resp.status_code == 200
     mock_run.assert_has_calls([
-        call(["nmcli", "connection", "delete", "OpenNetwork"], capture_output=True, text=True),
-        call(["nmcli", "device", "wifi", "connect", "OpenNetwork"],
+        call(["sudo", "nmcli", "connection", "delete", "OpenNetwork"], capture_output=True, text=True),
+        call(["sudo", "nmcli", "device", "wifi", "connect", "OpenNetwork"],
              capture_output=True, text=True, timeout=30),
     ])
 

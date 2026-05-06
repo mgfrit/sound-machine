@@ -169,7 +169,7 @@ def restart_sound_machine():
 @app.route("/api/wifi/scan")
 def wifi_scan():
     result = subprocess.run(
-        ["nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY", "device", "wifi", "list", "--rescan", "yes"],
+        ["sudo", "nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY", "device", "wifi", "list", "--rescan", "yes"],
         capture_output=True, text=True,
     )
     networks = []
@@ -206,8 +206,8 @@ def wifi_connect():
     password = data.get("password", "")
     # Delete any existing profile so nmcli creates a fresh one with all
     # required security properties (avoids "key-mgmt: property is missing" from stale profiles)
-    subprocess.run(["nmcli", "connection", "delete", ssid], capture_output=True, text=True)
-    cmd = ["nmcli", "device", "wifi", "connect", ssid]
+    subprocess.run(["sudo", "nmcli", "connection", "delete", ssid], capture_output=True, text=True)
+    cmd = ["sudo", "nmcli", "device", "wifi", "connect", ssid]
     if password:
         cmd += ["password", password]
     try:
