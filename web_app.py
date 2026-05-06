@@ -225,6 +225,23 @@ def bluetooth_scan():
     return jsonify([d for d in devices if d["address"] not in known_addresses])
 
 
+def _route_audio_to_bt(address):
+    """Switch PulseAudio output to the BT speaker and move existing streams."""
+    sanitized = address.replace(":", "_")
+    pactl = ["sudo", "pactl", "--server", "unix:/run/user/1000/pulse/native"]
+    sink = f"bluez_sink.{sanitized}.a2dp_sink"
+    subprocess.run(pactl + ["set-card-profile", f"bluez_card.{sanitized}", "a2dp_sink"],
+                   capture_output=True, text=True)
+    subprocess.run(pactl + ["set-default-sink", sink], capture_output=True, text=True)
+    result = subprocess.run(pactl + ["list", "sink-inputs", "short"],
+                            capture_output=True, text=True)
+    for line in result.stdout.splitlines():
+        parts = line.split()
+        if parts:
+            subprocess.run(pactl + ["move-sink-input", parts[0], sink],
+                           capture_output=True, text=True)
+
+
 @app.route("/api/bluetooth/pair", methods=["POST"])
 def bluetooth_pair():
     data = request.get_json(silent=True)
@@ -264,12 +281,7 @@ def bluetooth_pair():
         or "Connected: yes" in result.stdout
     )
     if connected:
-        sanitized = address.replace(":", "_")
-        subprocess.run(
-            ["sudo", "pactl", "--server", "unix:/run/user/1000/pulse/native",
-             "set-card-profile", f"bluez_card.{sanitized}", "a2dp_sink"],
-            capture_output=True, text=True,
-        )
+        _route_audio_to_bt(address)
     return jsonify({"ok": True, "connected": connected})
 
 

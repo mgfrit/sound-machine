@@ -168,14 +168,17 @@ def test_bluetooth_scan_deduplicates_addresses(client):
 # ── POST /api/bluetooth/pair ───────────────────────────────────────────────────
 
 def _pair_side_effect(connect_stdout, include_pactl=False):
-    """Build side_effect list for pair → trust → connect (→ pactl) calls."""
+    """Build side_effect list for pair → trust → connect (→ pactl calls) calls."""
     effects = [
         MagicMock(stdout="", returncode=0),                    # pair
         MagicMock(stdout="", returncode=0),                    # trust
         MagicMock(stdout=connect_stdout, returncode=0),        # connect
     ]
     if include_pactl:
-        effects.append(MagicMock(returncode=0))                # pactl
+        effects.append(MagicMock(returncode=0))                # set-card-profile
+        effects.append(MagicMock(returncode=0))                # set-default-sink
+        effects.append(MagicMock(stdout="42\t-\t-\t-\t-\n", returncode=0))  # list sink-inputs short
+        effects.append(MagicMock(returncode=0))                # move-sink-input
     return effects
 
 
@@ -212,6 +215,18 @@ def test_bluetooth_pair_does_not_duplicate_known_device(client, tmp_config):
     saved = json.loads(tmp_config.read_text())
     addresses = [d["address"] for d in saved["bluetooth"]["known_devices"]]
     assert addresses.count("AA:BB:CC:DD:EE:FF") == 1
+
+
+def test_bluetooth_pair_moves_sink_inputs_to_bt_sink(client, tmp_config):
+    with patch("web_app.subprocess.run", side_effect=_pair_side_effect("Connection successful", include_pactl=True)) as mock_run:
+        resp = client.post("/api/bluetooth/pair",
+                           json={"address": "11:22:33:44:55:66", "name": "New Speaker"})
+    assert resp.status_code == 200
+    assert resp.get_json()["connected"] is True
+    commands = [c.args[0] for c in mock_run.call_args_list]
+    sink_name = "bluez_sink.11_22_33_44_55_66.a2dp_sink"
+    assert any("set-default-sink" in cmd and sink_name in cmd for cmd in commands)
+    assert any("move-sink-input" in cmd and "42" in cmd and sink_name in cmd for cmd in commands)
 
 
 def test_bluetooth_pair_missing_address_returns_400(client):
