@@ -1,7 +1,7 @@
 from gpiozero import Button
 
 class ButtonHandler:
-    def __init__(self, config, state_machine, audio_player, on_bt_held):
+    def __init__(self, config, state_machine, audio_player):
         self._sm = state_machine
         self._player = audio_player
         self._sounds = config["sounds"]
@@ -17,18 +17,11 @@ class ButtonHandler:
             Button(pin, pull_up=True, bounce_time=gpio["button_bounce_time"])
             for pin in gpio["sound_buttons"]
         ]
-        self._bt_button = Button(
-            gpio["bluetooth_button"],
-            pull_up=True,
-            hold_time=gpio["bluetooth_hold_time"]
-        )
 
         for i, btn in enumerate(self._group_buttons):
             btn.when_pressed = lambda i=i: self._on_group(i)
         for i, btn in enumerate(self._sound_buttons):
             btn.when_pressed = lambda i=i: self._on_sound(i)
-
-        self._bt_button.when_held = on_bt_held
 
     def _on_group(self, index):
         self._sm.select_group(index)

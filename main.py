@@ -39,10 +39,6 @@ def main():
         preload_paths.append(bt_sound)
     player.preload(preload_paths)
 
-    # Play BT connected sound on boot if a device is already configured
-    if bt_sound and Path(bt_sound).exists() and config["bluetooth"].get("saved_device_address"):
-        player.play_system_sound(bt_sound)
-
     state_machine = StateMachine()
 
     def on_bt_connected():
@@ -53,25 +49,17 @@ def main():
         config_path="config.json",
         on_connected=on_bt_connected,
     )
-
-    def on_bt_held():
-        bt_cfg = config["bluetooth"]
-        bt_manager.initiate(
-            saved_address=bt_cfg.get("saved_device_address"),
-            scan_timeout=bt_cfg.get("scan_timeout", 10),
-        )
+    bt_manager.initiate(config["bluetooth"].get("known_devices", []))
 
     handler = ButtonHandler(
         config=config,
         state_machine=state_machine,
         audio_player=player,
-        on_bt_held=on_bt_held,
     )
 
     def shutdown(signum, frame):
         for btn in handler._group_buttons + handler._sound_buttons:
             btn.close()
-        handler._bt_button.close()
         Device.pin_factory.close()
         pygame.quit()
         sys.exit(0)
