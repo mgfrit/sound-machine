@@ -5,7 +5,6 @@ Wants=bluetooth.target pulseaudio.service
 
 [Service]
 ExecStartPre=/home/admin/sound-machine/venv/bin/python3 /home/admin/sound-machine/reset_gpio.py
-ExecStartPre=/home/admin/sound-machine/bt-setup.sh
 ExecStart=/home/admin/sound-machine/venv/bin/python3 /home/admin/sound-machine/main.py
 WorkingDirectory=/home/admin/sound-machine
 Restart=on-failure
