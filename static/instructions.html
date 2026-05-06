@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sound Machine — The Lore</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@400;700&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+
+<nav>
+  <span class="brand">⚔ Sound Machine</span>
+  <a href="/lore" class="active">Lore</a>
+  <a href="/">Board</a>
+  <a href="/wifi">Wayfinding</a>
+</nav>
+
+<main>
+  <h1>📜 The Lore</h1>
+  <p class="page-subtitle">Everything you need to wield the Sound Machine.</p>
+
+  <div class="section-card">
+    <span class="section-icon">🎛️</span>
+    <div class="section-title">Using the Soundboard</div>
+    <p style="font-size:15px;color:#9a7840;margin-bottom:16px;line-height:1.7;">The physical device has nine enchanted buttons — three group runes atop, and six sound runes below. Press a group rune first, then a sound rune to unleash it.</p>
+    <div class="btn-group-row" style="align-items:flex-end;margin-bottom:16px;">
+      <div class="mini-group"><div class="mini-btn blue">🎵</div><div class="mini-label">Music</div></div>
+      <div class="mini-group"><div class="mini-btn green">🌿</div><div class="mini-label">Ambiance</div></div>
+      <div class="mini-group"><div class="mini-btn red">⚡</div><div class="mini-label">Effects</div></div>
+      <div class="arrow">→</div>
+      <div class="mini-group"><div class="mini-btn purple">I</div><div class="mini-label">Rune I</div></div>
+      <div class="mini-group"><div class="mini-btn dark">II</div><div class="mini-label">Rune II</div></div>
+      <div class="mini-group"><div class="mini-btn dark">III</div><div class="mini-label">Rune III</div></div>
+    </div>
+    <div class="steps">
+      <div class="step"><div class="step-num">1</div><div class="step-text">Press a <strong>group button</strong> (Music, Ambiance, or Effects) to choose your mode.</div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-text">Press a <strong>sound rune</strong> (I–VI) to play the bound sound. Music and ambiance toggle on/off; effects play once.</div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-text">Use this web interface to <strong>configure</strong> what each rune plays, and to upload new audio files.</div></div>
+    </div>
+    <div class="callout">Music runes can hold a full playlist — tracks play sequentially, fading one into the next.</div>
+  </div>
+
+  <div class="section-card">
+    <span class="section-icon">📡</span>
+    <div class="section-title">Connecting Bluetooth</div>
+    <div class="steps">
+      <div class="step"><div class="step-num">1</div><div class="step-text">Put your Bluetooth speaker into <strong>pairing mode</strong>.</div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-text"><strong>Hold</strong> the Bluetooth button on the device for <strong>2 seconds</strong>. The machine will scan and pair automatically.</div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-text">A <strong>chime</strong> confirms a successful connection. The device remembers this speaker and reconnects on every boot.</div></div>
+    </div>
+    <div class="callout">If pairing fails, ensure no other device is connected to the speaker, then try again.</div>
+  </div>
+
+  <div class="section-card">
+    <span class="section-icon">🌐</span>
+    <div class="section-title">Connecting to WiFi</div>
+    <div class="steps">
+      <div class="step"><div class="step-num">1</div><div class="step-text">If the device cannot find a known network on boot, it opens a hotspot called <code>SoundMachine-Setup</code> (password: <code>soundmachine1</code>).</div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-text">Connect your phone or computer to that hotspot, then navigate to <code>http://soundmachine.local:5000/wifi</code>.</div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-text">Scan for networks, select yours, enter the password, and tap <strong>Connect &amp; Reboot</strong>. The device joins your network and this page becomes available on it.</div></div>
+    </div>
+  </div>
+</main>
+
+</body>
+</html>

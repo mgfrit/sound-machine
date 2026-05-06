@@ -13,9 +13,25 @@ ALLOWED_EXTENSIONS = {".wav", ".ogg", ".mp3"}
 VALID_GROUPS = {"music", "ambiance", "effects"}
 
 
+def _migrate_config(config):
+    """Ensure button_labels exists and music slots are arrays. Returns True if config changed."""
+    dirty = False
+    if "button_labels" not in config:
+        config["button_labels"] = [f"Slot {i + 1}" for i in range(6)]
+        dirty = True
+    for i, slot in enumerate(config["sounds"]["music"]):
+        if isinstance(slot, str):
+            config["sounds"]["music"][i] = [slot]
+            dirty = True
+    return dirty
+
+
 def load_config():
     with open(CONFIG_PATH) as f:
-        return json.load(f)
+        config = json.load(f)
+    if _migrate_config(config):
+        save_config(config)
+    return config
 
 
 def save_config(config):
@@ -39,6 +55,11 @@ def index():
     return send_from_directory("static", "index.html")
 
 
+@app.route("/lore")
+def lore_page():
+    return send_from_directory("static", "instructions.html")
+
+
 @app.route("/wifi")
 def wifi_setup_page():
     return send_from_directory("static", "wifi.html")
@@ -50,6 +71,7 @@ def get_config():
     return jsonify({
         "sounds": config["sounds"],
         "available": {g: available_files(g) for g in VALID_GROUPS},
+        "button_labels": config["button_labels"],
     })
 
 
@@ -69,6 +91,51 @@ def remap_sound(group, index):
     config["sounds"][group][index] = path
     save_config(config)
     return jsonify({"ok": True})
+
+
+@app.route("/api/config/label/<int:index>", methods=["PUT"])
+def update_label(index):
+    if index < 0 or index > 5:
+        return jsonify({"error": "index out of range"}), 400
+    data = request.get_json(silent=True)
+    if not data or "label" not in data:
+        return jsonify({"error": "missing 'label' field"}), 400
+    label = str(data["label"]).strip()
+    if not label:
+        return jsonify({"error": "label cannot be empty"}), 400
+    config = load_config()
+    config["button_labels"][index] = label[:32]
+    save_config(config)
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/sounds/music/<int:index>", methods=["PUT"])
+def remap_music_playlist(index):
+    if index < 0 or index > 5:
+        return jsonify({"error": "index out of range"}), 400
+    data = request.get_json(silent=True)
+    if data is None or "paths" not in data:
+        return jsonify({"error": "missing 'paths' field"}), 400
+    paths = data["paths"]
+    if paths is not None:
+        if not isinstance(paths, list):
+            return jsonify({"error": "'paths' must be a list or null"}), 400
+        for p in paths:
+            if Path(p).suffix.lower() not in ALLOWED_EXTENSIONS:
+                return jsonify({"error": f"unsupported format: {p}"}), 400
+            if not Path(p).exists():
+                return jsonify({"error": f"file not found: {p}"}), 400
+    config = load_config()
+    config["sounds"]["music"][index] = paths
+    save_config(config)
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/sounds/library/<group>", methods=["GET"])
+def sound_library(group):
+    if group not in VALID_GROUPS:
+        return jsonify({"error": "invalid group"}), 400
+    return jsonify({"files": available_files(group)})
 
 
 @app.route("/api/upload/<group>", methods=["POST"])

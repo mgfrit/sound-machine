@@ -1,5 +1,8 @@
 import pygame
 
+MUSIC_END = pygame.USEREVENT + 1
+
+
 class AudioPlayer:
     AMBIANCE_CH = 1
 
@@ -14,6 +17,8 @@ class AudioPlayer:
         }
         self._ambiance_ch = pygame.mixer.Channel(self.AMBIANCE_CH)
         self._cache = {}
+        self._playlist = []
+        self._playlist_index = 0
 
     def preload(self, paths):
         for path in paths:
@@ -29,12 +34,23 @@ class AudioPlayer:
             self._cache[path] = pygame.mixer.Sound(path)
         return self._cache[path]
 
-    def play_music(self, path):
-        if path is None:
+    def play_music_playlist(self, paths):
+        if not paths:
             return
-        pygame.mixer.music.load(path)
+        self._playlist = list(paths)
+        self._playlist_index = 0
+        pygame.mixer.music.set_endevent(MUSIC_END)
+        pygame.mixer.music.load(self._playlist[0])
         pygame.mixer.music.set_volume(self._volumes["music"])
-        pygame.mixer.music.play(-1)
+        pygame.mixer.music.play(0, fade_ms=0)
+
+    def advance_playlist(self):
+        if not self._playlist:
+            return
+        self._playlist_index = (self._playlist_index + 1) % len(self._playlist)
+        pygame.mixer.music.load(self._playlist[self._playlist_index])
+        pygame.mixer.music.set_volume(self._volumes["music"])
+        pygame.mixer.music.play(0, fade_ms=1500)
 
     def play_ambiance(self, path):
         if path is None:
@@ -61,6 +77,8 @@ class AudioPlayer:
         ch.play(sound)
 
     def stop_music(self):
+        self._playlist = []
+        self._playlist_index = 0
         pygame.mixer.music.fadeout(2000)
 
     def stop_ambiance(self):

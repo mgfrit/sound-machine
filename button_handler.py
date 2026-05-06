@@ -42,15 +42,18 @@ class ButtonHandler:
         sounds_list = self._sounds.get(group_name, [])
         if sound_index >= len(sounds_list):
             return
-        path = sounds_list[sound_index]
         if group_name == "music":
+            paths = sounds_list[sound_index]
+            if isinstance(paths, str):
+                paths = [paths] if paths else None
             if self._active_music == sound_index:
                 self._player.stop_music()
                 self._active_music = None
-            else:
-                self._player.play_music(path)
+            elif paths:
+                self._player.play_music_playlist(paths)
                 self._active_music = sound_index
         elif group_name == "ambiance":
+            path = sounds_list[sound_index]
             if self._active_ambiance == sound_index:
                 self._player.stop_ambiance()
                 self._active_ambiance = None
@@ -58,4 +61,5 @@ class ButtonHandler:
                 self._player.play_ambiance(path)
                 self._active_ambiance = sound_index
         elif group_name == "effects":
+            path = sounds_list[sound_index]
             self._player.play_effect(path)

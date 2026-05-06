@@ -2,6 +2,7 @@ import json
 import os
 import signal
 import sys
+import time
 from pathlib import Path
 
 os.environ.setdefault("SDL_AUDIODRIVER", "pulse")
@@ -12,7 +13,7 @@ Device.pin_factory = LGPIOFactory()
 
 import pygame
 from state_machine import StateMachine
-from audio_player import AudioPlayer
+from audio_player import AudioPlayer, MUSIC_END
 from button_handler import ButtonHandler
 from bluetooth_manager import BluetoothManager
 
@@ -79,7 +80,11 @@ def main():
     signal.signal(signal.SIGINT, shutdown)
 
     print("D&D Sound Machine running. Press Ctrl+C to exit.")
-    signal.pause()
+    while True:
+        for event in pygame.event.get():
+            if event.type == MUSIC_END:
+                player.advance_playlist()
+        time.sleep(0.05)
 
 
 if __name__ == "__main__":
