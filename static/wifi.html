@@ -24,6 +24,17 @@
   <p class="page-subtitle">Connect the machine to your realm's network.</p>
 
   <div class="section-card">
+    <span class="section-icon">🔊</span>
+    <div class="section-title">Bluetooth Speakers</div>
+    <div class="section-subheading">Bound Speakers</div>
+    <ul class="device-list" id="knownList"></ul>
+    <div class="section-subheading" style="margin-top:16px">Nearby Devices</div>
+    <button class="btn-primary" id="btScanBtn" onclick="btScan()">Scan for Speakers</button>
+    <ul class="device-list" id="nearbyList"></ul>
+    <div id="btStatus" class="wifi-status"></div>
+  </div>
+
+  <div class="section-card">
     <span class="section-icon">📡</span>
     <div class="section-title">Network Discovery</div>
     <button class="btn-primary" id="scanBtn" onclick="scan()">Scan for Networks</button>
@@ -48,6 +59,119 @@
     if (d.ssid) { el.textContent = '● ' + d.ssid; el.className = 'wifi-nav-status connected'; }
     else         { el.textContent = '● No network'; el.className = 'wifi-nav-status disconnected'; }
   }).catch(() => {});
+
+  // ── Bluetooth ──────────────────────────────────────────────────────────────
+
+  function renderKnown(devices) {
+    const list = document.getElementById('knownList');
+    list.innerHTML = '';
+    if (devices.length === 0) {
+      list.innerHTML = '<li class="device-empty">No speakers saved yet.</li>';
+      return;
+    }
+    devices.forEach(d => {
+      const li = document.createElement('li');
+      li.className = 'device-row';
+      li.innerHTML = `
+        <div class="device-info">
+          <span class="device-name">${d.name}</span>
+          <span class="device-addr">${d.address}</span>
+        </div>
+        <button class="btn-forget" onclick="btForget('${d.address}', this)">Forget</button>`;
+      list.appendChild(li);
+    });
+  }
+
+  fetch('/api/bluetooth/known').then(r => r.json()).then(renderKnown).catch(() => {});
+
+  async function btScan() {
+    const btn = document.getElementById('btScanBtn');
+    const list = document.getElementById('nearbyList');
+    btn.disabled = true;
+    btn.textContent = 'Scanning…';
+    list.innerHTML = '';
+    showBtStatus('Scanning for nearby speakers…', 'info');
+    try {
+      const resp = await fetch('/api/bluetooth/scan');
+      const devices = await resp.json();
+      hideBtStatus();
+      if (devices.length === 0) {
+        list.innerHTML = '<li class="device-empty">No new speakers found — try scanning again.</li>';
+      } else {
+        devices.forEach(d => {
+          const li = document.createElement('li');
+          li.className = 'device-row';
+          li.innerHTML = `
+            <div class="device-info">
+              <span class="device-name">${d.name}</span>
+              <span class="device-addr">${d.address}</span>
+            </div>
+            <button class="btn-pair" onclick="btPair('${d.address}', '${d.name.replace(/'/g, "\\'")}', this)">Pair</button>`;
+          list.appendChild(li);
+        });
+      }
+    } catch (e) {
+      showBtStatus('Scan failed: ' + e.message, 'error');
+    }
+    btn.disabled = false;
+    btn.textContent = 'Scan for Speakers';
+  }
+
+  async function btPair(address, name, btn) {
+    btn.disabled = true;
+    btn.textContent = 'Pairing…';
+    try {
+      const resp = await fetch('/api/bluetooth/pair', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address, name }),
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        showBtStatus(data.connected ? `Connected to ${name}!` : `Saved ${name} — will connect on next boot.`, 'success');
+        btn.closest('li').remove();
+        const known = await fetch('/api/bluetooth/known').then(r => r.json());
+        renderKnown(known);
+      } else {
+        showBtStatus('Pair failed: ' + (data.error || 'Unknown error'), 'error');
+        btn.disabled = false;
+        btn.textContent = 'Pair';
+      }
+    } catch (e) {
+      showBtStatus('Error: ' + e.message, 'error');
+      btn.disabled = false;
+      btn.textContent = 'Pair';
+    }
+  }
+
+  async function btForget(address, btn) {
+    btn.disabled = true;
+    try {
+      const resp = await fetch(`/api/bluetooth/device/${address}`, { method: 'DELETE' });
+      const data = await resp.json();
+      if (data.ok) {
+        const known = await fetch('/api/bluetooth/known').then(r => r.json());
+        renderKnown(known);
+      } else {
+        showBtStatus('Forget failed: ' + (data.error || 'Unknown error'), 'error');
+        btn.disabled = false;
+      }
+    } catch (e) {
+      showBtStatus('Error: ' + e.message, 'error');
+      btn.disabled = false;
+    }
+  }
+
+  function showBtStatus(msg, type) {
+    const el = document.getElementById('btStatus');
+    el.textContent = msg;
+    el.className = 'wifi-status ' + type;
+    el.style.display = 'block';
+  }
+  function hideBtStatus() {
+    const el = document.getElementById('btStatus');
+    el.style.display = 'none';
+  }
 
   let selectedSSID = null;
 

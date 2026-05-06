@@ -356,6 +356,39 @@ h1 {
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* ── Bluetooth device list ── */
+.section-subheading {
+  font-family: 'Cinzel', serif; font-size: 10px; font-weight: 700;
+  color: #7a6030; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 10px;
+}
+.device-list { list-style: none; padding: 0; margin-top: 8px; }
+.device-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 9px 12px; margin: 5px 0;
+  background: #0e0b07; border: 1px solid #2a1e0f; border-radius: 6px;
+}
+.device-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.device-name { font-family: 'EB Garamond', serif; font-size: 15px; color: #b8955a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.device-addr { font-family: monospace; font-size: 11px; color: #4a3820; }
+.device-empty { font-family: 'EB Garamond', serif; font-size: 14px; color: #4a3820; font-style: italic; padding: 8px 0; }
+.btn-pair {
+  flex-shrink: 0; background: linear-gradient(180deg, #1a4428, #0e2a18); color: #44bb88;
+  border: 1px solid #226633; border-radius: 5px; padding: 5px 12px;
+  font-size: 9px; font-family: 'Cinzel', serif; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; transition: all 0.15s;
+}
+.btn-pair:hover { background: linear-gradient(180deg, #205530, #122e1a); box-shadow: 0 0 8px rgba(40,180,100,0.25); }
+.btn-pair:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-forget {
+  flex-shrink: 0; background: none; color: #4a3820;
+  border: 1px solid #2a1e0f; border-radius: 5px; padding: 5px 12px;
+  font-size: 9px; font-family: 'Cinzel', serif; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; transition: all 0.15s;
+}
+.btn-forget:hover { color: #993333; border-color: #662222; }
+.btn-forget:disabled { opacity: 0.4; cursor: not-allowed; }
+.wifi-status.info { background: #0e0b07; border: 1px solid #3a2a14; color: #7a6030; display: block; }
+
 /* ── WiFi page ── */
 .wifi-network-list { list-style: none; padding: 0; margin-top: 16px; }
 .wifi-network-list li {
