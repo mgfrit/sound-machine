@@ -186,7 +186,9 @@ def _parse_bt_devices(output):
     devices = []
     seen = set()
     for line in output.splitlines():
-        match = re.match(r'Device ([0-9A-Fa-f:]{17}) (.+)', line)
+        # matches both "[NEW] Device XX:XX Name" (scan events) and
+        # "Device XX:XX Name" (devices command output)
+        match = re.search(r'Device ([0-9A-Fa-f:]{17}) (.+)', line)
         if match:
             address = match.group(1).upper()
             name = match.group(2).strip()
@@ -201,23 +203,25 @@ def bluetooth_scan():
     config = load_config()
     scan_timeout = config["bluetooth"].get("scan_timeout", 10)
     known_addresses = {d["address"] for d in config["bluetooth"].get("known_devices", [])}
-    scan_proc = subprocess.Popen(
-        ["sudo", "bluetoothctl", "scan", "on"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    proc = subprocess.Popen(
+        ["sudo", "bluetoothctl"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
     )
     try:
+        proc.stdin.write("power on\nscan on\n")
+        proc.stdin.flush()
         time.sleep(scan_timeout)
-        result = subprocess.run(
-            ["sudo", "bluetoothctl", "devices"],
-            capture_output=True, text=True,
-        )
-        devices = _parse_bt_devices(result.stdout)
-    finally:
-        scan_proc.terminate()
-        subprocess.run(
-            ["sudo", "bluetoothctl", "scan", "off"],
-            capture_output=True, text=True,
-        )
+        stdout, _ = proc.communicate(input="devices\nquit\n", timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        stdout, _ = proc.communicate()
+    except Exception:
+        proc.kill()
+        raise
+    devices = _parse_bt_devices(stdout)
     return jsonify([d for d in devices if d["address"] not in known_addresses])
 
 
