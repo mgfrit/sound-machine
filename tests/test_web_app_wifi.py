@@ -70,8 +70,9 @@ def test_wifi_scan_handles_ssid_with_colon(client):
 def test_wifi_connect_success_calls_nmcli_and_reboots(client):
     lookup = MagicMock(stdout="abc-123:HomeNetwork\ndef-456:OtherNet\n", returncode=0)
     delete = MagicMock(returncode=0)
-    connect = MagicMock(returncode=0, stderr="")
-    with patch("web_app.subprocess.run", side_effect=[lookup, delete, connect]) as mock_run, \
+    add    = MagicMock(returncode=0, stderr="")
+    up     = MagicMock(returncode=0, stderr="")
+    with patch("web_app.subprocess.run", side_effect=[lookup, delete, add, up]) as mock_run, \
          patch("web_app._schedule_reboot") as mock_reboot:
         resp = client.post("/api/wifi/connect", json={"ssid": "HomeNetwork", "password": "secret"})
     assert resp.status_code == 200
@@ -81,7 +82,12 @@ def test_wifi_connect_success_calls_nmcli_and_reboots(client):
              capture_output=True, text=True),
         call(["sudo", "nmcli", "connection", "delete", "uuid", "abc-123"],
              capture_output=True, text=True),
-        call(["sudo", "nmcli", "device", "wifi", "connect", "HomeNetwork", "password", "secret"],
+        call(["sudo", "nmcli", "connection", "add", "type", "wifi",
+              "con-name", "HomeNetwork", "ssid", "HomeNetwork", "connection.autoconnect", "yes",
+              "802-11-wireless-security.key-mgmt", "wpa-psk",
+              "802-11-wireless-security.psk", "secret"],
+             capture_output=True, text=True),
+        call(["sudo", "nmcli", "connection", "up", "id", "HomeNetwork"],
              capture_output=True, text=True, timeout=30),
     ])
     mock_reboot.assert_called_once()
@@ -89,23 +95,26 @@ def test_wifi_connect_success_calls_nmcli_and_reboots(client):
 
 def test_wifi_connect_open_network_omits_password(client):
     lookup = MagicMock(stdout="", returncode=0)
-    connect = MagicMock(returncode=0, stderr="")
-    with patch("web_app.subprocess.run", side_effect=[lookup, connect]) as mock_run, \
+    add    = MagicMock(returncode=0, stderr="")
+    up     = MagicMock(returncode=0, stderr="")
+    with patch("web_app.subprocess.run", side_effect=[lookup, add, up]) as mock_run, \
          patch("web_app._schedule_reboot"):
         resp = client.post("/api/wifi/connect", json={"ssid": "OpenNetwork"})
     assert resp.status_code == 200
     mock_run.assert_has_calls([
-        call(["sudo", "nmcli", "-t", "-f", "UUID,802-11-WIRELESS.SSID", "connection", "show"],
+        call(["sudo", "nmcli", "connection", "add", "type", "wifi",
+              "con-name", "OpenNetwork", "ssid", "OpenNetwork", "connection.autoconnect", "yes"],
              capture_output=True, text=True),
-        call(["sudo", "nmcli", "device", "wifi", "connect", "OpenNetwork"],
+        call(["sudo", "nmcli", "connection", "up", "id", "OpenNetwork"],
              capture_output=True, text=True, timeout=30),
     ])
 
 
 def test_wifi_connect_wrong_password_returns_error(client):
     lookup = MagicMock(stdout="", returncode=0)
-    connect = MagicMock(returncode=1, stderr="Error: Connection activation failed.", stdout="")
-    with patch("web_app.subprocess.run", side_effect=[lookup, connect]), \
+    add    = MagicMock(returncode=0, stderr="")
+    up     = MagicMock(returncode=1, stderr="Error: Connection activation failed.", stdout="")
+    with patch("web_app.subprocess.run", side_effect=[lookup, add, up]), \
          patch("web_app._schedule_reboot") as mock_reboot:
         resp = client.post("/api/wifi/connect", json={"ssid": "HomeNetwork", "password": "wrong"})
     assert resp.status_code == 500
