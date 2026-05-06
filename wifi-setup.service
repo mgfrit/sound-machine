@@ -1,0 +1,14 @@
+[Unit]
+Description=WiFi Setup AP Fallback
+After=NetworkManager.service
+Before=sound-machine-web.service
+Wants=NetworkManager.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/home/admin/sound-machine/wifi_setup.sh
+User=root
+
+[Install]
+WantedBy=multi-user.target
