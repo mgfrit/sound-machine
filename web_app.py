@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 import threading
 from pathlib import Path
@@ -14,7 +15,7 @@ VALID_GROUPS = {"music", "ambiance", "effects"}
 
 
 def _migrate_config(config):
-    """Ensure button_labels exists and music slots are arrays. Returns True if config changed."""
+    """Ensure button_labels exists, music slots are arrays, and bluetooth uses known_devices. Returns True if config changed."""
     dirty = False
     if "button_labels" not in config:
         config["button_labels"] = [f"Slot {i + 1}" for i in range(6)]
@@ -23,6 +24,14 @@ def _migrate_config(config):
         if isinstance(slot, str):
             config["sounds"]["music"][i] = [slot]
             dirty = True
+    bt = config.setdefault("bluetooth", {})
+    if "saved_device_address" in bt:
+        addr = bt.pop("saved_device_address")
+        if isinstance(addr, str) and addr:
+            bt.setdefault("known_devices", [{"address": addr, "name": "Unknown Speaker"}])
+        else:
+            bt.setdefault("known_devices", [])
+        dirty = True
     return dirty
 
 
@@ -163,6 +172,84 @@ def restart_sound_machine():
     )
     if result.returncode != 0:
         return jsonify({"error": result.stderr}), 500
+    return jsonify({"ok": True})
+
+
+@app.route("/api/bluetooth/known")
+def bluetooth_known():
+    config = load_config()
+    return jsonify(config["bluetooth"].get("known_devices", []))
+
+
+def _parse_bt_scan(output):
+    devices = []
+    seen = set()
+    for line in output.splitlines():
+        match = re.search(r'\[NEW\] Device ([0-9A-F:]{17}) (.+)', line)
+        if match:
+            address, name = match.group(1), match.group(2).strip()
+            if address not in seen:
+                seen.add(address)
+                devices.append({"address": address, "name": name})
+    return devices
+
+
+@app.route("/api/bluetooth/scan")
+def bluetooth_scan():
+    config = load_config()
+    scan_timeout = config["bluetooth"].get("scan_timeout", 10)
+    known_addresses = {d["address"] for d in config["bluetooth"].get("known_devices", [])}
+    result = subprocess.run(
+        ["sudo", "bluetoothctl", "--timeout", str(scan_timeout), "scan", "on"],
+        capture_output=True, text=True,
+    )
+    devices = _parse_bt_scan(result.stdout)
+    return jsonify([d for d in devices if d["address"] not in known_addresses])
+
+
+@app.route("/api/bluetooth/pair", methods=["POST"])
+def bluetooth_pair():
+    data = request.get_json(silent=True)
+    if not data or "address" not in data or "name" not in data:
+        return jsonify({"error": "missing address or name"}), 400
+    address = data["address"]
+    name = data["name"]
+    config = load_config()
+    known = config["bluetooth"].setdefault("known_devices", [])
+    if not any(d["address"] == address for d in known):
+        known.append({"address": address, "name": name})
+        save_config(config)
+    try:
+        result = subprocess.run(
+            ["sudo", "bluetoothctl", "connect", address],
+            capture_output=True, text=True, timeout=15,
+        )
+    except subprocess.TimeoutExpired:
+        return jsonify({"ok": True, "connected": False})
+    connected = (
+        "Connection successful" in result.stdout
+        or "Already connected" in result.stdout
+        or "Connected: yes" in result.stdout
+    )
+    if connected:
+        sanitized = address.replace(":", "_")
+        subprocess.run(
+            ["sudo", "pactl", "--server", "unix:/run/user/1000/pulse/native",
+             "set-card-profile", f"bluez_card.{sanitized}", "a2dp_sink"],
+            capture_output=True, text=True,
+        )
+    return jsonify({"ok": True, "connected": connected})
+
+
+@app.route("/api/bluetooth/device/<address>", methods=["DELETE"])
+def bluetooth_forget(address):
+    config = load_config()
+    known = config["bluetooth"].get("known_devices", [])
+    updated = [d for d in known if d["address"] != address]
+    if len(updated) == len(known):
+        return jsonify({"error": "not found"}), 404
+    config["bluetooth"]["known_devices"] = updated
+    save_config(config)
     return jsonify({"ok": True})
 
 
