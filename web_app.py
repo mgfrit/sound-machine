@@ -93,5 +93,32 @@ def restart_sound_machine():
     return jsonify({"ok": True})
 
 
+@app.route("/api/wifi/scan")
+def wifi_scan():
+    result = subprocess.run(
+        ["nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY", "device", "wifi", "list", "--rescan", "yes"],
+        capture_output=True, text=True,
+    )
+    networks = []
+    seen = set()
+    for line in result.stdout.strip().splitlines():
+        # Split from right so colons in SSID (escaped as \: by nmcli) are handled
+        parts = line.rsplit(":", 2)
+        if len(parts) != 3:
+            continue
+        ssid = parts[0].replace("\\:", ":")
+        signal_raw, security = parts[1], parts[2]
+        if not ssid or ssid in seen:
+            continue
+        seen.add(ssid)
+        networks.append({
+            "ssid": ssid,
+            "signal": int(signal_raw) if signal_raw.isdigit() else 0,
+            "security": security,
+        })
+    networks.sort(key=lambda n: n["signal"], reverse=True)
+    return jsonify(networks)
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)
