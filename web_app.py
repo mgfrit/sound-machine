@@ -1,6 +1,7 @@
 import json
 import os
 import subprocess
+import threading
 from pathlib import Path
 from flask import Flask, jsonify, request, send_from_directory
 
@@ -118,6 +119,27 @@ def wifi_scan():
         })
     networks.sort(key=lambda n: n["signal"], reverse=True)
     return jsonify(networks)
+
+
+def _schedule_reboot():
+    threading.Timer(2.0, lambda: subprocess.run(["sudo", "systemctl", "reboot"])).start()
+
+
+@app.route("/api/wifi/connect", methods=["POST"])
+def wifi_connect():
+    data = request.get_json()
+    if not data or "ssid" not in data:
+        return jsonify({"error": "missing ssid"}), 400
+    ssid = data["ssid"]
+    password = data.get("password", "")
+    cmd = ["nmcli", "device", "wifi", "connect", ssid]
+    if password:
+        cmd += ["password", password]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    if result.returncode != 0:
+        return jsonify({"error": result.stderr or result.stdout}), 500
+    _schedule_reboot()
+    return jsonify({"ok": True})
 
 
 if __name__ == "__main__":

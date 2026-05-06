@@ -65,3 +65,56 @@ def test_wifi_scan_handles_ssid_with_colon(client):
         resp = client.get("/api/wifi/scan")
     data = resp.get_json()
     assert data[0]["ssid"] == "My:Network"
+
+
+def test_wifi_connect_success_calls_nmcli_and_reboots(client):
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stderr = ""
+    with patch("web_app.subprocess.run", return_value=mock_result) as mock_run, \
+         patch("web_app._schedule_reboot") as mock_reboot:
+        resp = client.post("/api/wifi/connect", json={"ssid": "HomeNetwork", "password": "secret"})
+    assert resp.status_code == 200
+    assert resp.get_json()["ok"] is True
+    mock_run.assert_called_once_with(
+        ["nmcli", "device", "wifi", "connect", "HomeNetwork", "password", "secret"],
+        capture_output=True, text=True, timeout=30,
+    )
+    mock_reboot.assert_called_once()
+
+
+def test_wifi_connect_open_network_omits_password(client):
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stderr = ""
+    with patch("web_app.subprocess.run", return_value=mock_result) as mock_run, \
+         patch("web_app._schedule_reboot"):
+        resp = client.post("/api/wifi/connect", json={"ssid": "OpenNetwork"})
+    assert resp.status_code == 200
+    mock_run.assert_called_once_with(
+        ["nmcli", "device", "wifi", "connect", "OpenNetwork"],
+        capture_output=True, text=True, timeout=30,
+    )
+
+
+def test_wifi_connect_wrong_password_returns_error(client):
+    mock_result = MagicMock()
+    mock_result.returncode = 1
+    mock_result.stderr = "Error: Connection activation failed."
+    mock_result.stdout = ""
+    with patch("web_app.subprocess.run", return_value=mock_result), \
+         patch("web_app._schedule_reboot") as mock_reboot:
+        resp = client.post("/api/wifi/connect", json={"ssid": "HomeNetwork", "password": "wrong"})
+    assert resp.status_code == 500
+    assert "error" in resp.get_json()
+    mock_reboot.assert_not_called()
+
+
+def test_wifi_connect_missing_ssid_returns_400(client):
+    resp = client.post("/api/wifi/connect", json={"password": "secret"})
+    assert resp.status_code == 400
+
+
+def test_wifi_connect_no_json_returns_400(client):
+    resp = client.post("/api/wifi/connect")
+    assert resp.status_code == 400
