@@ -135,9 +135,12 @@ def wifi_connect():
     cmd = ["nmcli", "device", "wifi", "connect", ssid]
     if password:
         cmd += ["password", password]
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": "nmcli timed out — connection attempt failed"}), 500
     if result.returncode != 0:
-        return jsonify({"error": result.stderr or result.stdout}), 500
+        return jsonify({"error": result.stderr or result.stdout or "nmcli failed"}), 500
     _schedule_reboot()
     return jsonify({"ok": True})
 
