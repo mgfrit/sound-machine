@@ -167,10 +167,20 @@ def test_bluetooth_scan_deduplicates_addresses(client):
 
 # ── POST /api/bluetooth/pair ───────────────────────────────────────────────────
 
+def _pair_side_effect(connect_stdout, include_pactl=False):
+    """Build side_effect list for pair → trust → connect (→ pactl) calls."""
+    effects = [
+        MagicMock(stdout="", returncode=0),                    # pair
+        MagicMock(stdout="", returncode=0),                    # trust
+        MagicMock(stdout=connect_stdout, returncode=0),        # connect
+    ]
+    if include_pactl:
+        effects.append(MagicMock(returncode=0))                # pactl
+    return effects
+
+
 def test_bluetooth_pair_saves_and_connects(client, tmp_config):
-    connect_result = MagicMock(stdout="Connection successful", returncode=0)
-    pactl_result = MagicMock(returncode=0)
-    with patch("web_app.subprocess.run", side_effect=[connect_result, pactl_result]):
+    with patch("web_app.subprocess.run", side_effect=_pair_side_effect("Connection successful", include_pactl=True)):
         resp = client.post("/api/bluetooth/pair",
                            json={"address": "11:22:33:44:55:66", "name": "New Speaker"})
     assert resp.status_code == 200
@@ -183,8 +193,7 @@ def test_bluetooth_pair_saves_and_connects(client, tmp_config):
 
 
 def test_bluetooth_pair_saves_even_when_connect_fails(client, tmp_config):
-    connect_result = MagicMock(stdout="Failed to connect", returncode=1)
-    with patch("web_app.subprocess.run", return_value=connect_result):
+    with patch("web_app.subprocess.run", side_effect=_pair_side_effect("Failed to connect")):
         resp = client.post("/api/bluetooth/pair",
                            json={"address": "11:22:33:44:55:66", "name": "New Speaker"})
     assert resp.status_code == 200
@@ -197,9 +206,7 @@ def test_bluetooth_pair_saves_even_when_connect_fails(client, tmp_config):
 
 
 def test_bluetooth_pair_does_not_duplicate_known_device(client, tmp_config):
-    connect_result = MagicMock(stdout="Connection successful", returncode=0)
-    pactl_result = MagicMock(returncode=0)
-    with patch("web_app.subprocess.run", side_effect=[connect_result, pactl_result]):
+    with patch("web_app.subprocess.run", side_effect=_pair_side_effect("Connection successful", include_pactl=True)):
         client.post("/api/bluetooth/pair",
                     json={"address": "AA:BB:CC:DD:EE:FF", "name": "Test Speaker"})
     saved = json.loads(tmp_config.read_text())

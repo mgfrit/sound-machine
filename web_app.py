@@ -237,6 +237,20 @@ def bluetooth_pair():
     if not any(d["address"] == address for d in known):
         known.append({"address": address, "name": name})
         save_config(config)
+    # Full pairing handshake: pair exchanges keys, trust enables auto-connect,
+    # connect establishes the session. Running them as separate blocking calls
+    # ensures each step completes before the next starts.
+    try:
+        subprocess.run(
+            ["sudo", "bluetoothctl", "pair", address],
+            capture_output=True, text=True, timeout=15,
+        )
+    except subprocess.TimeoutExpired:
+        pass  # already paired or device slow — still attempt connect
+    subprocess.run(
+        ["sudo", "bluetoothctl", "trust", address],
+        capture_output=True, text=True, timeout=5,
+    )
     try:
         result = subprocess.run(
             ["sudo", "bluetoothctl", "connect", address],
