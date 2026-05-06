@@ -28,12 +28,20 @@ nav::after {
   background: linear-gradient(90deg, transparent, rgba(212,180,100,0.3), transparent);
 }
 nav .brand {
-  padding: 14px 0;
   font-family: 'Cinzel Decorative', serif;
   color: #c9a227; font-size: 13px; font-weight: 700;
   text-shadow: 0 0 20px rgba(201,162,39,0.6), 0 1px 0 rgba(0,0,0,0.8);
-  margin-right: auto; letter-spacing: 0.08em;
+  letter-spacing: 0.08em;
 }
+.brand-block {
+  display: flex; flex-direction: column; justify-content: center;
+  margin-right: auto; padding: 10px 0; gap: 3px;
+}
+.wifi-nav-status {
+  font-family: 'Cinzel', serif; font-size: 8px; letter-spacing: 0.06em;
+}
+.wifi-nav-status.connected    { color: #44bb88; }
+.wifi-nav-status.disconnected { color: #dd6666; }
 nav a {
   padding: 14px 16px; color: #7a6030;
   font-family: 'Cinzel', serif; font-size: 11px;

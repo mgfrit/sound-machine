@@ -166,6 +166,19 @@ def restart_sound_machine():
     return jsonify({"ok": True})
 
 
+@app.route("/api/wifi/status")
+def wifi_status():
+    result = subprocess.run(
+        ["sudo", "nmcli", "-t", "-f", "ACTIVE,SSID", "device", "wifi"],
+        capture_output=True, text=True,
+    )
+    for line in result.stdout.strip().splitlines():
+        parts = line.split(":", 1)
+        if len(parts) == 2 and parts[0] == "yes":
+            return jsonify({"ssid": parts[1].replace("\\:", ":")})
+    return jsonify({"ssid": None})
+
+
 @app.route("/api/wifi/scan")
 def wifi_scan():
     result = subprocess.run(

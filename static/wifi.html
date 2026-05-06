@@ -10,7 +10,10 @@
 <body>
 
 <nav>
-  <span class="brand">⚔ Sound Machine</span>
+  <div class="brand-block">
+    <span class="brand">⚔ Sound Machine</span>
+    <span id="wifi-indicator" class="wifi-nav-status"></span>
+  </div>
   <a href="/static/instructions.html">Lore</a>
   <a href="/">Board</a>
   <a href="/wifi" class="active">The Weave</a>
@@ -40,6 +43,12 @@
 </main>
 
 <script>
+  fetch('/api/wifi/status').then(r => r.json()).then(d => {
+    const el = document.getElementById('wifi-indicator');
+    if (d.ssid) { el.textContent = '● ' + d.ssid; el.className = 'wifi-nav-status connected'; }
+    else         { el.textContent = '● No network'; el.className = 'wifi-nav-status disconnected'; }
+  }).catch(() => {});
+
   let selectedSSID = null;
 
   async function scan() {
