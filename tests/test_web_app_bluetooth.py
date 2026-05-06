@@ -224,6 +224,31 @@ def test_bluetooth_pair_no_json_returns_400(client):
 
 # ── DELETE /api/bluetooth/device/<address> ─────────────────────────────────────
 
+# ── GET /api/bluetooth/os-devices ─────────────────────────────────────────────
+
+def test_bluetooth_os_devices_returns_unconfigured_devices(client):
+    mock_result = MagicMock(stdout="Device 11:22:33:44:55:66 Random Speaker\n")
+    with patch("web_app.subprocess.run", return_value=mock_result):
+        resp = client.get("/api/bluetooth/os-devices")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert len(data) == 1
+    assert data[0] == {"address": "11:22:33:44:55:66", "name": "Random Speaker"}
+
+
+def test_bluetooth_os_devices_excludes_known_devices(client):
+    # AA:BB:CC:DD:EE:FF is in the fixture's known_devices
+    mock_result = MagicMock(stdout=(
+        "Device AA:BB:CC:DD:EE:FF Test Speaker\n"
+        "Device 11:22:33:44:55:66 Other Speaker\n"
+    ))
+    with patch("web_app.subprocess.run", return_value=mock_result):
+        resp = client.get("/api/bluetooth/os-devices")
+    data = resp.get_json()
+    assert len(data) == 1
+    assert data[0]["address"] == "11:22:33:44:55:66"
+
+
 def test_bluetooth_forget_removes_device(client, tmp_config):
     with patch("web_app.subprocess.run") as mock_run:
         resp = client.delete("/api/bluetooth/device/AA:BB:CC:DD:EE:FF")
@@ -232,10 +257,9 @@ def test_bluetooth_forget_removes_device(client, tmp_config):
     saved = json.loads(tmp_config.read_text())
     assert not any(d["address"] == "AA:BB:CC:DD:EE:FF"
                    for d in saved["bluetooth"]["known_devices"])
-    mock_run.assert_called_once_with(
-        ["sudo", "bluetoothctl", "remove", "AA:BB:CC:DD:EE:FF"],
-        capture_output=True, text=True,
-    )
+    calls = [c.args[0] for c in mock_run.call_args_list]
+    assert ["sudo", "bluetoothctl", "disconnect", "AA:BB:CC:DD:EE:FF"] in calls
+    assert ["sudo", "bluetoothctl", "remove", "AA:BB:CC:DD:EE:FF"] in calls
 
 
 def test_bluetooth_forget_unknown_address_returns_404(client):

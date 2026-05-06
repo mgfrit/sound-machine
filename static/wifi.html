@@ -84,32 +84,42 @@
 
   fetch('/api/bluetooth/known').then(r => r.json()).then(renderKnown).catch(() => {});
 
+  // Pre-populate nearby list with devices BlueZ already knows about
+  fetch('/api/bluetooth/os-devices').then(r => r.json()).then(devices => {
+    if (devices.length > 0) renderNearby(devices);
+  }).catch(() => {});
+
+  function renderNearby(devices) {
+    const list = document.getElementById('nearbyList');
+    list.innerHTML = '';
+    if (devices.length === 0) {
+      list.innerHTML = '<li class="device-empty">No speakers found — try scanning again.</li>';
+      return;
+    }
+    devices.forEach(d => {
+      const li = document.createElement('li');
+      li.className = 'device-row';
+      li.innerHTML = `
+        <div class="device-info">
+          <span class="device-name">${d.name}</span>
+          <span class="device-addr">${d.address}</span>
+        </div>
+        <button class="btn-pair" onclick="btPair('${d.address}', '${d.name.replace(/'/g, "\\'")}', this)">Pair</button>`;
+      list.appendChild(li);
+    });
+  }
+
   async function btScan() {
     const btn = document.getElementById('btScanBtn');
-    const list = document.getElementById('nearbyList');
     btn.disabled = true;
     btn.textContent = 'Scanning…';
-    list.innerHTML = '';
+    document.getElementById('nearbyList').innerHTML = '';
     showBtStatus('Scanning for nearby speakers…', 'info');
     try {
       const resp = await fetch('/api/bluetooth/scan');
       const devices = await resp.json();
       hideBtStatus();
-      if (devices.length === 0) {
-        list.innerHTML = '<li class="device-empty">No new speakers found — try scanning again.</li>';
-      } else {
-        devices.forEach(d => {
-          const li = document.createElement('li');
-          li.className = 'device-row';
-          li.innerHTML = `
-            <div class="device-info">
-              <span class="device-name">${d.name}</span>
-              <span class="device-addr">${d.address}</span>
-            </div>
-            <button class="btn-pair" onclick="btPair('${d.address}', '${d.name.replace(/'/g, "\\'")}', this)">Pair</button>`;
-          list.appendChild(li);
-        });
-      }
+      renderNearby(devices);
     } catch (e) {
       showBtStatus('Scan failed: ' + e.message, 'error');
     }

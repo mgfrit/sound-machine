@@ -259,6 +259,19 @@ def bluetooth_pair():
     return jsonify({"ok": True, "connected": connected})
 
 
+@app.route("/api/bluetooth/os-devices")
+def bluetooth_os_devices():
+    """Devices BlueZ already knows about (connected/cached) that aren't saved in config."""
+    config = load_config()
+    known_addresses = {d["address"] for d in config["bluetooth"].get("known_devices", [])}
+    result = subprocess.run(
+        ["sudo", "bluetoothctl", "devices"],
+        capture_output=True, text=True,
+    )
+    devices = _parse_bt_devices(result.stdout)
+    return jsonify([d for d in devices if d["address"] not in known_addresses])
+
+
 @app.route("/api/bluetooth/device/<address>", methods=["DELETE"])
 def bluetooth_forget(address):
     config = load_config()
@@ -268,10 +281,8 @@ def bluetooth_forget(address):
         return jsonify({"error": "not found"}), 404
     config["bluetooth"]["known_devices"] = updated
     save_config(config)
-    subprocess.run(
-        ["sudo", "bluetoothctl", "remove", address],
-        capture_output=True, text=True,
-    )
+    subprocess.run(["sudo", "bluetoothctl", "disconnect", address], capture_output=True, text=True)
+    subprocess.run(["sudo", "bluetoothctl", "remove", address], capture_output=True, text=True)
     return jsonify({"ok": True})
 
 
