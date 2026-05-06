@@ -154,9 +154,13 @@ h1 {
 /* ── Arcade button base ── */
 .arcade-btn {
   display: flex; flex-direction: column; align-items: center; gap: 9px;
-  cursor: pointer; user-select: none;
+  cursor: pointer; user-select: none; transition: opacity 0.25s;
 }
 .arcade-btn:active .dome-wrap { transform: translateY(3px); }
+
+/* ── Dim non-selected buttons ── */
+.btn-music:not(.active), .btn-ambiance:not(.active), .btn-effects:not(.active) { opacity: 0.45; }
+.grid:has(.btn-sound.selected) .btn-sound:not(.selected) { opacity: 0.45; }
 .dome-wrap {
   width: 100%; aspect-ratio: 1; border-radius: 50%; position: relative;
   transition: transform 0.08s ease;
