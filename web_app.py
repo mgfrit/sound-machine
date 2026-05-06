@@ -229,11 +229,21 @@ def wifi_connect():
         if len(parts) == 2 and parts[1].replace("\\:", ":") == ssid:
             subprocess.run(["sudo", "nmcli", "connection", "delete", "uuid", parts[0]],
                            capture_output=True, text=True)
-    cmd = ["sudo", "nmcli", "device", "wifi", "connect", ssid]
+    # Explicitly specify key-mgmt rather than relying on nmcli to infer it from
+    # its scan cache — inference fails when the AP isn't cached (common on 5GHz)
+    add_cmd = ["sudo", "nmcli", "connection", "add", "type", "wifi",
+               "con-name", ssid, "ssid", ssid, "connection.autoconnect", "yes"]
     if password:
-        cmd += ["password", password]
+        add_cmd += ["802-11-wireless-security.key-mgmt", "wpa-psk",
+                    "802-11-wireless-security.psk", password]
+    add_result = subprocess.run(add_cmd, capture_output=True, text=True)
+    if add_result.returncode != 0:
+        return jsonify({"error": add_result.stderr or add_result.stdout or "nmcli failed"}), 500
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        result = subprocess.run(
+            ["sudo", "nmcli", "connection", "up", "id", ssid],
+            capture_output=True, text=True, timeout=30,
+        )
     except subprocess.TimeoutExpired:
         return jsonify({"error": "nmcli timed out — connection attempt failed"}), 500
     if result.returncode != 0:
