@@ -1,6 +1,6 @@
 # tests/test_web_app_wifi.py
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, call
 import web_app
 
 
@@ -76,10 +76,11 @@ def test_wifi_connect_success_calls_nmcli_and_reboots(client):
         resp = client.post("/api/wifi/connect", json={"ssid": "HomeNetwork", "password": "secret"})
     assert resp.status_code == 200
     assert resp.get_json()["ok"] is True
-    mock_run.assert_called_once_with(
-        ["nmcli", "device", "wifi", "connect", "HomeNetwork", "password", "secret"],
-        capture_output=True, text=True, timeout=30,
-    )
+    mock_run.assert_has_calls([
+        call(["nmcli", "connection", "delete", "HomeNetwork"], capture_output=True, text=True),
+        call(["nmcli", "device", "wifi", "connect", "HomeNetwork", "password", "secret"],
+             capture_output=True, text=True, timeout=30),
+    ])
     mock_reboot.assert_called_once()
 
 
@@ -91,10 +92,11 @@ def test_wifi_connect_open_network_omits_password(client):
          patch("web_app._schedule_reboot"):
         resp = client.post("/api/wifi/connect", json={"ssid": "OpenNetwork"})
     assert resp.status_code == 200
-    mock_run.assert_called_once_with(
-        ["nmcli", "device", "wifi", "connect", "OpenNetwork"],
-        capture_output=True, text=True, timeout=30,
-    )
+    mock_run.assert_has_calls([
+        call(["nmcli", "connection", "delete", "OpenNetwork"], capture_output=True, text=True),
+        call(["nmcli", "device", "wifi", "connect", "OpenNetwork"],
+             capture_output=True, text=True, timeout=30),
+    ])
 
 
 def test_wifi_connect_wrong_password_returns_error(client):

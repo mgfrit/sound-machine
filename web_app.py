@@ -204,6 +204,9 @@ def wifi_connect():
         return jsonify({"error": "missing ssid"}), 400
     ssid = data["ssid"]
     password = data.get("password", "")
+    # Delete any existing profile so nmcli creates a fresh one with all
+    # required security properties (avoids "key-mgmt: property is missing" from stale profiles)
+    subprocess.run(["nmcli", "connection", "delete", ssid], capture_output=True, text=True)
     cmd = ["nmcli", "device", "wifi", "connect", ssid]
     if password:
         cmd += ["password", password]
