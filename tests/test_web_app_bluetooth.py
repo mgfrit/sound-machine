@@ -112,13 +112,24 @@ def test_bluetooth_known_empty_list(tmp_path, monkeypatch):
 
 # ── GET /api/bluetooth/scan ────────────────────────────────────────────────────
 
+def _bt_scan_patches(devices_stdout):
+    """Return context managers for mocking the three-call BT scan flow."""
+    return (
+        patch("web_app.subprocess.Popen", return_value=MagicMock()),
+        patch("web_app.time.sleep"),
+        patch("web_app.subprocess.run", side_effect=[
+            MagicMock(stdout=devices_stdout),  # bluetoothctl devices
+            MagicMock(returncode=0),            # bluetoothctl scan off
+        ]),
+    )
+
+
 def test_bluetooth_scan_returns_nearby_devices(client):
-    scan_result = MagicMock(stdout="")
-    devices_result = MagicMock(stdout=(
+    popen, sleep, run = _bt_scan_patches(
         "Device 11:22:33:44:55:66 UE Boom 3\n"
         "Device BB:CC:DD:EE:FF:AA Sony Speaker\n"
-    ))
-    with patch("web_app.subprocess.run", side_effect=[scan_result, devices_result]):
+    )
+    with popen, sleep, run:
         resp = client.get("/api/bluetooth/scan")
     assert resp.status_code == 200
     data = resp.get_json()
@@ -128,12 +139,11 @@ def test_bluetooth_scan_returns_nearby_devices(client):
 
 
 def test_bluetooth_scan_excludes_known_devices(client):
-    scan_result = MagicMock(stdout="")
-    devices_result = MagicMock(stdout=(
+    popen, sleep, run = _bt_scan_patches(
         "Device AA:BB:CC:DD:EE:FF Test Speaker\n"
         "Device 11:22:33:44:55:66 New Speaker\n"
-    ))
-    with patch("web_app.subprocess.run", side_effect=[scan_result, devices_result]):
+    )
+    with popen, sleep, run:
         resp = client.get("/api/bluetooth/scan")
     data = resp.get_json()
     assert len(data) == 1
@@ -141,20 +151,18 @@ def test_bluetooth_scan_excludes_known_devices(client):
 
 
 def test_bluetooth_scan_empty_returns_empty_list(client):
-    scan_result = MagicMock(stdout="")
-    devices_result = MagicMock(stdout="")
-    with patch("web_app.subprocess.run", side_effect=[scan_result, devices_result]):
+    popen, sleep, run = _bt_scan_patches("")
+    with popen, sleep, run:
         resp = client.get("/api/bluetooth/scan")
     assert resp.get_json() == []
 
 
 def test_bluetooth_scan_deduplicates_addresses(client):
-    scan_result = MagicMock(stdout="")
-    devices_result = MagicMock(stdout=(
+    popen, sleep, run = _bt_scan_patches(
         "Device 11:22:33:44:55:66 Speaker\n"
         "Device 11:22:33:44:55:66 Speaker\n"
-    ))
-    with patch("web_app.subprocess.run", side_effect=[scan_result, devices_result]):
+    )
+    with popen, sleep, run:
         resp = client.get("/api/bluetooth/scan")
     assert len(resp.get_json()) == 1
 
@@ -239,9 +247,8 @@ def test_bluetooth_forget_unknown_address_returns_404(client):
 
 
 def test_bluetooth_scan_normalizes_lowercase_mac(client):
-    scan_result = MagicMock(stdout="")
-    devices_result = MagicMock(stdout="Device f4:4e:fd:1b:d4:97 BUGANI M118\n")
-    with patch("web_app.subprocess.run", side_effect=[scan_result, devices_result]):
+    popen, sleep, run = _bt_scan_patches("Device f4:4e:fd:1b:d4:97 BUGANI M118\n")
+    with popen, sleep, run:
         resp = client.get("/api/bluetooth/scan")
     data = resp.get_json()
     assert len(data) == 1

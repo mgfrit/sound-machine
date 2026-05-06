@@ -3,6 +3,7 @@ import os
 import re
 import subprocess
 import threading
+import time
 from pathlib import Path
 from flask import Flask, jsonify, request, send_from_directory
 
@@ -200,15 +201,23 @@ def bluetooth_scan():
     config = load_config()
     scan_timeout = config["bluetooth"].get("scan_timeout", 10)
     known_addresses = {d["address"] for d in config["bluetooth"].get("known_devices", [])}
-    subprocess.run(
-        ["sudo", "bluetoothctl", "--timeout", str(scan_timeout), "scan", "on"],
-        capture_output=True, text=True,
+    scan_proc = subprocess.Popen(
+        ["sudo", "bluetoothctl", "scan", "on"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
-    result = subprocess.run(
-        ["sudo", "bluetoothctl", "devices"],
-        capture_output=True, text=True,
-    )
-    devices = _parse_bt_devices(result.stdout)
+    try:
+        time.sleep(scan_timeout)
+        result = subprocess.run(
+            ["sudo", "bluetoothctl", "devices"],
+            capture_output=True, text=True,
+        )
+        devices = _parse_bt_devices(result.stdout)
+    finally:
+        scan_proc.terminate()
+        subprocess.run(
+            ["sudo", "bluetoothctl", "scan", "off"],
+            capture_output=True, text=True,
+        )
     return jsonify([d for d in devices if d["address"] not in known_addresses])
 
 
