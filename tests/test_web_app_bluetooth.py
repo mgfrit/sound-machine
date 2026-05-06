@@ -113,13 +113,12 @@ def test_bluetooth_known_empty_list(tmp_path, monkeypatch):
 # ── GET /api/bluetooth/scan ────────────────────────────────────────────────────
 
 def test_bluetooth_scan_returns_nearby_devices(client):
-    mock_result = MagicMock()
-    mock_result.stdout = (
-        "[NEW] Device 11:22:33:44:55:66 UE Boom 3\n"
-        "Discovery started\n"
-        "[NEW] Device BB:CC:DD:EE:FF:AA Sony Speaker\n"
-    )
-    with patch("web_app.subprocess.run", return_value=mock_result):
+    scan_result = MagicMock(stdout="")
+    devices_result = MagicMock(stdout=(
+        "Device 11:22:33:44:55:66 UE Boom 3\n"
+        "Device BB:CC:DD:EE:FF:AA Sony Speaker\n"
+    ))
+    with patch("web_app.subprocess.run", side_effect=[scan_result, devices_result]):
         resp = client.get("/api/bluetooth/scan")
     assert resp.status_code == 200
     data = resp.get_json()
@@ -129,12 +128,12 @@ def test_bluetooth_scan_returns_nearby_devices(client):
 
 
 def test_bluetooth_scan_excludes_known_devices(client):
-    mock_result = MagicMock()
-    mock_result.stdout = (
-        "[NEW] Device AA:BB:CC:DD:EE:FF Test Speaker\n"
-        "[NEW] Device 11:22:33:44:55:66 New Speaker\n"
-    )
-    with patch("web_app.subprocess.run", return_value=mock_result):
+    scan_result = MagicMock(stdout="")
+    devices_result = MagicMock(stdout=(
+        "Device AA:BB:CC:DD:EE:FF Test Speaker\n"
+        "Device 11:22:33:44:55:66 New Speaker\n"
+    ))
+    with patch("web_app.subprocess.run", side_effect=[scan_result, devices_result]):
         resp = client.get("/api/bluetooth/scan")
     data = resp.get_json()
     assert len(data) == 1
@@ -142,20 +141,20 @@ def test_bluetooth_scan_excludes_known_devices(client):
 
 
 def test_bluetooth_scan_empty_returns_empty_list(client):
-    mock_result = MagicMock()
-    mock_result.stdout = "Discovery started\nDiscovery stopped\n"
-    with patch("web_app.subprocess.run", return_value=mock_result):
+    scan_result = MagicMock(stdout="")
+    devices_result = MagicMock(stdout="")
+    with patch("web_app.subprocess.run", side_effect=[scan_result, devices_result]):
         resp = client.get("/api/bluetooth/scan")
     assert resp.get_json() == []
 
 
 def test_bluetooth_scan_deduplicates_addresses(client):
-    mock_result = MagicMock()
-    mock_result.stdout = (
-        "[NEW] Device 11:22:33:44:55:66 Speaker\n"
-        "[NEW] Device 11:22:33:44:55:66 Speaker\n"
-    )
-    with patch("web_app.subprocess.run", return_value=mock_result):
+    scan_result = MagicMock(stdout="")
+    devices_result = MagicMock(stdout=(
+        "Device 11:22:33:44:55:66 Speaker\n"
+        "Device 11:22:33:44:55:66 Speaker\n"
+    ))
+    with patch("web_app.subprocess.run", side_effect=[scan_result, devices_result]):
         resp = client.get("/api/bluetooth/scan")
     assert len(resp.get_json()) == 1
 

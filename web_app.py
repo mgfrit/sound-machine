@@ -181,11 +181,11 @@ def bluetooth_known():
     return jsonify(config["bluetooth"].get("known_devices", []))
 
 
-def _parse_bt_scan(output):
+def _parse_bt_devices(output):
     devices = []
     seen = set()
     for line in output.splitlines():
-        match = re.search(r'\[NEW\] Device ([0-9A-F:]{17}) (.+)', line)
+        match = re.match(r'Device ([0-9A-F:]{17}) (.+)', line)
         if match:
             address, name = match.group(1), match.group(2).strip()
             if address not in seen:
@@ -199,11 +199,15 @@ def bluetooth_scan():
     config = load_config()
     scan_timeout = config["bluetooth"].get("scan_timeout", 10)
     known_addresses = {d["address"] for d in config["bluetooth"].get("known_devices", [])}
-    result = subprocess.run(
+    subprocess.run(
         ["sudo", "bluetoothctl", "--timeout", str(scan_timeout), "scan", "on"],
         capture_output=True, text=True,
     )
-    devices = _parse_bt_scan(result.stdout)
+    result = subprocess.run(
+        ["sudo", "bluetoothctl", "devices"],
+        capture_output=True, text=True,
+    )
+    devices = _parse_bt_devices(result.stdout)
     return jsonify([d for d in devices if d["address"] not in known_addresses])
 
 
