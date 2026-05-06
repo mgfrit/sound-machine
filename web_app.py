@@ -179,15 +179,10 @@ def wifi_status():
     return jsonify({"ssid": None})
 
 
-@app.route("/api/wifi/scan")
-def wifi_scan():
-    result = subprocess.run(
-        ["sudo", "nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY", "device", "wifi", "list", "--rescan", "yes"],
-        capture_output=True, text=True,
-    )
+def _parse_wifi_scan(stdout):
     networks = []
     seen = set()
-    for line in result.stdout.strip().splitlines():
+    for line in stdout.strip().splitlines():
         # Split from right so colons in SSID (escaped as \: by nmcli) are handled
         parts = line.rsplit(":", 2)
         if len(parts) != 3:
@@ -203,6 +198,24 @@ def wifi_scan():
             "security": security,
         })
     networks.sort(key=lambda n: n["signal"], reverse=True)
+    return networks
+
+
+@app.route("/api/wifi/scan")
+def wifi_scan():
+    result = subprocess.run(
+        ["sudo", "nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY", "device", "wifi", "list", "--rescan", "yes"],
+        capture_output=True, text=True,
+    )
+    networks = _parse_wifi_scan(result.stdout)
+    # In hotspot mode the forced rescan may fail or return nothing — fall back
+    # to NetworkManager's cached scan results which are still available
+    if not networks:
+        result = subprocess.run(
+            ["sudo", "nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY", "device", "wifi", "list"],
+            capture_output=True, text=True,
+        )
+        networks = _parse_wifi_scan(result.stdout)
     return jsonify(networks)
 
 

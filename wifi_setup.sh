@@ -15,6 +15,6 @@ done
 
 echo "No WiFi connection after 30s — activating hotspot '$SSID'."
 nmcli device wifi hotspot ifname wlan0 ssid "$SSID" password "$PASSWORD"
-echo "Hotspot active. Connect to '$SSID' and open http://soundmachine.local/wifi"
-echo "(Fallback: http://192.168.4.1/wifi or http://192.168.4.1:5000/wifi)"
+echo "Hotspot active. Connect to '$SSID' and open http://soundmachine.local:5000/wifi"
+echo "(Fallback IP: http://10.42.0.1:5000/wifi)"
 exit 0

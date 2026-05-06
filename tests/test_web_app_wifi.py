@@ -67,6 +67,17 @@ def test_wifi_scan_handles_ssid_with_colon(client):
     assert data[0]["ssid"] == "My:Network"
 
 
+def test_wifi_scan_falls_back_to_cache_when_rescan_empty(client):
+    # Simulates hotspot mode: forced rescan returns nothing, cached results available
+    empty = MagicMock(stdout="", returncode=0)
+    cached = MagicMock(stdout="HomeNetwork:75:WPA2\n", returncode=0)
+    with patch("web_app.subprocess.run", side_effect=[empty, cached]):
+        resp = client.get("/api/wifi/scan")
+    data = resp.get_json()
+    assert len(data) == 1
+    assert data[0]["ssid"] == "HomeNetwork"
+
+
 def test_wifi_connect_success_calls_nmcli_and_reboots(client):
     lookup = MagicMock(stdout="abc-123:HomeNetwork\ndef-456:OtherNet\n", returncode=0)
     delete = MagicMock(returncode=0)

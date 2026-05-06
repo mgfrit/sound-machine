@@ -4,7 +4,8 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
-      "Bash(python -m pytest tests/test_web_app_wifi.py -v)"
+      "Bash(python -m pytest tests/test_web_app_wifi.py -v)",
+      "Bash(git rm *)"
     ]
   }
 }
