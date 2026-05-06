@@ -13,8 +13,6 @@
       26,
       19
     ],
-    "bluetooth_button": 23,
-    "bluetooth_hold_time": 2.0,
     "button_bounce_time": 0.05
   },
   "groups": [
@@ -52,7 +50,9 @@
     "bt_connected": "sounds/system/bluetooth_success.wav"
   },
   "bluetooth": {
-    "saved_device_address": "F4:4E:FD:1B:D4:97",
+    "known_devices": [
+      {"address": "F4:4E:FD:1B:D4:97", "name": "Unknown Speaker"}
+    ],
     "scan_timeout": 10
   },
   "audio": {
