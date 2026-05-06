@@ -185,9 +185,10 @@ def _parse_bt_devices(output):
     devices = []
     seen = set()
     for line in output.splitlines():
-        match = re.match(r'Device ([0-9A-F:]{17}) (.+)', line)
+        match = re.match(r'Device ([0-9A-Fa-f:]{17}) (.+)', line)
         if match:
-            address, name = match.group(1), match.group(2).strip()
+            address = match.group(1).upper()
+            name = match.group(2).strip()
             if address not in seen:
                 seen.add(address)
                 devices.append({"address": address, "name": name})
@@ -254,6 +255,10 @@ def bluetooth_forget(address):
         return jsonify({"error": "not found"}), 404
     config["bluetooth"]["known_devices"] = updated
     save_config(config)
+    subprocess.run(
+        ["sudo", "bluetoothctl", "remove", address],
+        capture_output=True, text=True,
+    )
     return jsonify({"ok": True})
 
 

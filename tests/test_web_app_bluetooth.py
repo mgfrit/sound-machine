@@ -219,15 +219,31 @@ def test_bluetooth_pair_no_json_returns_400(client):
 # ── DELETE /api/bluetooth/device/<address> ─────────────────────────────────────
 
 def test_bluetooth_forget_removes_device(client, tmp_config):
-    resp = client.delete("/api/bluetooth/device/AA:BB:CC:DD:EE:FF")
+    with patch("web_app.subprocess.run") as mock_run:
+        resp = client.delete("/api/bluetooth/device/AA:BB:CC:DD:EE:FF")
     assert resp.status_code == 200
     assert resp.get_json()["ok"] is True
     saved = json.loads(tmp_config.read_text())
     assert not any(d["address"] == "AA:BB:CC:DD:EE:FF"
                    for d in saved["bluetooth"]["known_devices"])
+    mock_run.assert_called_once_with(
+        ["sudo", "bluetoothctl", "remove", "AA:BB:CC:DD:EE:FF"],
+        capture_output=True, text=True,
+    )
 
 
 def test_bluetooth_forget_unknown_address_returns_404(client):
     resp = client.delete("/api/bluetooth/device/FF:FF:FF:FF:FF:FF")
     assert resp.status_code == 404
     assert "error" in resp.get_json()
+
+
+def test_bluetooth_scan_normalizes_lowercase_mac(client):
+    scan_result = MagicMock(stdout="")
+    devices_result = MagicMock(stdout="Device f4:4e:fd:1b:d4:97 BUGANI M118\n")
+    with patch("web_app.subprocess.run", side_effect=[scan_result, devices_result]):
+        resp = client.get("/api/bluetooth/scan")
+    data = resp.get_json()
+    assert len(data) == 1
+    assert data[0]["address"] == "F4:4E:FD:1B:D4:97"
+    assert data[0]["name"] == "BUGANI M118"
