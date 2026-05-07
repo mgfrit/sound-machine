@@ -42,6 +42,10 @@ function esc(str) {
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function attr(val) {
+  return esc(JSON.stringify(val));
+}
+
 function fileRow(f) {
   const slotBadges = f.slots.length
     ? f.slots.map(s => `<span class="lib-slot-badge">${esc(s.rune)}</span>`).join('')
@@ -53,13 +57,13 @@ function fileRow(f) {
     <td>${slotBadges}</td>
     <td class="lib-actions">
       <button class="lib-action-btn${isPlaying ? ' playing' : ''}"
-        onclick="playFile(${JSON.stringify(f.path)}, ${JSON.stringify(f.label)})">
+        onclick="playFile(${attr(f.path)}, ${attr(f.label)})">
         ${isPlaying ? '▶ Playing' : '▶ Play'}
       </button>
       <button class="lib-action-btn"
-        onclick="startRename(${JSON.stringify(f.path)}, ${JSON.stringify(f.label)})">✎ Rename</button>
+        onclick="startRename(${attr(f.path)}, ${attr(f.label)})">✎ Rename</button>
       <button class="lib-action-btn danger"
-        onclick="deleteFile(${JSON.stringify(f.path)}, ${JSON.stringify(f.slots)})">🗑</button>
+        onclick="deleteFile(${attr(f.path)}, ${attr(f.slots)})">🗑</button>
     </td>
   </tr>`;
 }
@@ -81,9 +85,9 @@ function startRename(path, currentLabel) {
   const actionsCell = row.querySelector('.lib-actions');
   labelCell.innerHTML = `<input class="lib-label-input" id="rename-input"
     value="${esc(currentLabel)}" maxlength="64"
-    onkeydown="if(event.key==='Enter')saveRename(${JSON.stringify(path)});if(event.key==='Escape')loadLibrary()">`;
+    onkeydown="if(event.key===&quot;Enter&quot;)saveRename(${attr(path)});if(event.key===&quot;Escape&quot;)loadLibrary()">`;
   actionsCell.innerHTML = `
-    <button class="lib-action-btn save" onclick="saveRename(${JSON.stringify(path)})">✓ Save</button>
+    <button class="lib-action-btn save" onclick="saveRename(${attr(path)})">✓ Save</button>
     <button class="lib-action-btn" onclick="loadLibrary()">✕ Cancel</button>`;
   const input = document.getElementById('rename-input');
   input.focus();
