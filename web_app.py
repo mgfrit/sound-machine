@@ -7,17 +7,36 @@ import time
 from pathlib import Path
 from flask import Flask, jsonify, request, send_from_directory
 
+# Flask serves both the static web pages and the JSON API.
+# static_folder="static" means /static/* URLs map to the static/ directory.
 app = Flask(__name__, static_folder="static")
 
+# Absolute paths resolved at startup so all routes use consistent locations
+# regardless of the working directory the process was launched from.
 CONFIG_PATH = Path(__file__).parent / "config.json"
 SOUNDS_DIR = Path(__file__).parent / "sounds"
+
 ALLOWED_EXTENSIONS = {".wav", ".ogg", ".mp3"}
 VALID_GROUPS = {"music", "ambiance", "effects"}
+
+# Human-readable names for the six rune slots, used in library API responses
+# so the frontend can say "Rune III" instead of just "slot 2".
 RUNE_NAMES = ["Rune I", "Rune II", "Rune III", "Rune IV", "Rune V", "Rune VI"]
 
 
 def _migrate_config(config):
-    """Ensure button_labels exists, music slots are arrays, and bluetooth uses known_devices. Returns True if config changed."""
+    """Bring an older config.json up to the current schema without losing data.
+
+    Called every time the config is loaded. Returns True if any change was made
+    (so the caller knows whether to write it back to disk).
+
+    Migrations performed:
+    - Add button_labels if missing (default "Slot 1" … "Slot 6")
+    - Convert music slots that are plain strings into single-item lists
+      (the schema changed from string → list to support playlists)
+    - Add file_labels dict if missing (maps file path → display name)
+    - Rename saved_device_address → known_devices list (old BT format)
+    """
     dirty = False
     if "button_labels" not in config:
         config["button_labels"] = [f"Slot {i + 1}" for i in range(6)]
@@ -41,6 +60,9 @@ def _migrate_config(config):
 
 
 def load_config():
+    """Read config.json, run any necessary migrations, and return the dict.
+    If the config was migrated, it is written back to disk immediately so the
+    next load sees the updated format."""
     with open(CONFIG_PATH) as f:
         config = json.load(f)
     if _migrate_config(config):
@@ -49,11 +71,15 @@ def load_config():
 
 
 def save_config(config):
+    """Write the config dict back to config.json with 2-space indentation."""
     with open(CONFIG_PATH, "w") as f:
         json.dump(config, f, indent=2)
 
 
 def available_files(group):
+    """Return a sorted list of relative file paths (from project root) for all
+    audio files in the given group's sounds sub-directory.
+    Example: ["sounds/music/battle.ogg", "sounds/music/tavern.mp3"]"""
     folder = SOUNDS_DIR / group
     if not folder.exists():
         return []
@@ -63,6 +89,8 @@ def available_files(group):
         if p.suffix in ALLOWED_EXTENSIONS
     )
 
+
+# ── Static page routes ─────────────────────────────────────────────────────────
 
 @app.route("/")
 def index():
@@ -79,8 +107,33 @@ def wifi_setup_page():
     return send_from_directory("static", "wifi.html")
 
 
+@app.route("/library")
+def library_page():
+    return send_from_directory("static", "library.html")
+
+
+# ── Sound file serving ─────────────────────────────────────────────────────────
+
+@app.route("/sounds/<path:filename>")
+def serve_sound(filename):
+    """Serve audio files from the sounds/ directory for browser preview.
+
+    The sounds/ folder is outside Flask's static_folder, so it doesn't get
+    automatic file-serving. This route fills that gap. It's used by the Library
+    page's audio player — the browser fetches the file directly and plays it
+    locally (not through Bluetooth)."""
+    return send_from_directory(str(SOUNDS_DIR), filename)
+
+
+# ── Config API ─────────────────────────────────────────────────────────────────
+
 @app.route("/api/config", methods=["GET"])
 def get_config():
+    """Return the data the Board page needs to render itself:
+    - sounds: current slot assignments for all three groups
+    - available: all uploaded files per group (for the add-to-slot dropdowns)
+    - button_labels: the six rune dome labels shown on the board
+    - file_labels: display names for audio files (used to show friendly names in dropdowns)"""
     config = load_config()
     return jsonify({
         "sounds": config["sounds"],
@@ -90,8 +143,30 @@ def get_config():
     })
 
 
+@app.route("/api/config/label/<int:index>", methods=["PUT"])
+def update_label(index):
+    """Update the display label shown on one of the six rune domes on the board.
+    Accepts JSON: {"label": "Epic Battle"}. Labels are capped at 32 characters."""
+    if index < 0 or index > 5:
+        return jsonify({"error": "index out of range"}), 400
+    data = request.get_json(silent=True)
+    if not data or "label" not in data:
+        return jsonify({"error": "missing 'label' field"}), 400
+    label = str(data["label"]).strip()
+    if not label:
+        return jsonify({"error": "label cannot be empty"}), 400
+    config = load_config()
+    config["button_labels"][index] = label[:32]
+    save_config(config)
+    return jsonify({"status": "ok"})
+
+
+# ── Sound slot assignment API ──────────────────────────────────────────────────
+
 @app.route("/api/sounds/<group>/<int:index>", methods=["PUT"])
 def remap_sound(group, index):
+    """Assign or clear a sound file for one slot in the ambiance or effects group.
+    Accepts JSON: {"path": "sounds/effects/sword.wav"} or {"path": null} to clear."""
     if group not in VALID_GROUPS:
         return jsonify({"error": "invalid group"}), 400
     data = request.get_json()
@@ -108,24 +183,11 @@ def remap_sound(group, index):
     return jsonify({"ok": True})
 
 
-@app.route("/api/config/label/<int:index>", methods=["PUT"])
-def update_label(index):
-    if index < 0 or index > 5:
-        return jsonify({"error": "index out of range"}), 400
-    data = request.get_json(silent=True)
-    if not data or "label" not in data:
-        return jsonify({"error": "missing 'label' field"}), 400
-    label = str(data["label"]).strip()
-    if not label:
-        return jsonify({"error": "label cannot be empty"}), 400
-    config = load_config()
-    config["button_labels"][index] = label[:32]
-    save_config(config)
-    return jsonify({"status": "ok"})
-
-
 @app.route("/api/sounds/music/<int:index>", methods=["PUT"])
 def remap_music_playlist(index):
+    """Assign a playlist (ordered list of file paths) to one of the six music slots.
+    Accepts JSON: {"paths": ["sounds/music/a.ogg", "sounds/music/b.ogg"]} or {"paths": null} to clear.
+    All paths are validated for existence and extension before saving."""
     if index < 0 or index > 5:
         return jsonify({"error": "index out of range"}), 400
     data = request.get_json(silent=True)
@@ -146,8 +208,12 @@ def remap_music_playlist(index):
     return jsonify({"status": "ok"})
 
 
+# ── Sound library API ──────────────────────────────────────────────────────────
+
 @app.route("/api/sounds/library/<group>", methods=["GET"])
 def sound_library(group):
+    """Return a list of all uploaded files for a given group.
+    Used by the Board page's add-track dropdowns."""
     if group not in VALID_GROUPS:
         return jsonify({"error": "invalid group"}), 400
     return jsonify({"files": available_files(group)})
@@ -155,6 +221,9 @@ def sound_library(group):
 
 @app.route("/api/upload/<group>", methods=["POST"])
 def upload_sound(group):
+    """Accept a multipart file upload and save it to sounds/<group>/.
+    Creates a default file label (filename stem, underscores/hyphens → spaces).
+    setdefault ensures an existing manually-set label is never overwritten by re-upload."""
     if group not in VALID_GROUPS:
         return jsonify({"error": "invalid group"}), 400
     if "file" not in request.files:
@@ -175,17 +244,16 @@ def upload_sound(group):
     return jsonify({"ok": True, "path": path_str})
 
 
-@app.route("/library")
-def library_page():
-    return send_from_directory("static", "library.html")
-
-
-@app.route("/sounds/<path:filename>")
-def serve_sound(filename):
-    return send_from_directory(str(SOUNDS_DIR), filename)
-
-
 def _build_library(config):
+    """Build the full library response for all three groups.
+
+    For each file on disk, determines:
+    - label: its friendly display name from file_labels (falls back to filename stem)
+    - slots: which rune slots it is currently assigned to, with group and rune name
+
+    Music slots are lists (playlists), so a file can appear in multiple playlists.
+    Ambiance and effects slots are single paths, so a file can appear in at most one slot per group.
+    Returns: {"music": [...], "ambiance": [...], "effects": [...]}"""
     file_labels = config.get("file_labels", {})
     result = {}
     for group in VALID_GROUPS:
@@ -207,12 +275,23 @@ def _build_library(config):
 
 @app.route("/api/library")
 def get_library():
+    """Return the full library — all files across all groups with labels and slot assignments.
+    Used by the Library page to populate its tabbed file table."""
     config = load_config()
     return jsonify(_build_library(config))
 
 
 @app.route("/api/library/label", methods=["PUT"])
 def update_file_label():
+    """Rename a file's display label and cascade the change to any rune slot that
+    was showing the old label.
+
+    Accepts JSON: {"path": "sounds/music/foo.ogg", "label": "Epic Battle"}
+
+    Cascade logic: if a button_label exactly matches the old file label, it is
+    updated to the new one. This keeps the board in sync when a file is renamed
+    from the library. Custom labels that don't match (e.g. the user typed something
+    different) are left alone."""
     data = request.get_json(silent=True)
     if not data or "path" not in data or "label" not in data:
         return jsonify({"error": "missing path or label"}), 400
@@ -235,9 +314,19 @@ def update_file_label():
 
 @app.route("/api/library/file", methods=["DELETE"])
 def delete_library_file():
+    """Delete an audio file from disk and clean up all references to it.
+
+    Path is passed as a query parameter (?path=sounds/music/foo.ogg).
+    After deleting the file:
+    - Music slots: remove the path from the playlist array; set slot to null if the playlist becomes empty
+    - Ambiance/effects slots: set to null if they reference the deleted file
+    - file_labels: remove the entry for this file
+    Returns the list of slots that were cleared so the frontend can update its display."""
     path_str = request.args.get("path")
     if not path_str:
         return jsonify({"error": "missing path query parameter"}), 400
+    # Construct the absolute path by joining SOUNDS_DIR.parent (project root) with the
+    # relative path from config (e.g. "sounds/music/foo.ogg")
     file_path = SOUNDS_DIR.parent / path_str
     if not file_path.exists():
         return jsonify({"error": "file not found"}), 404
@@ -261,8 +350,12 @@ def delete_library_file():
     return jsonify({"ok": True, "cleared_slots": cleared_slots})
 
 
+# ── Device management API ──────────────────────────────────────────────────────
+
 @app.route("/api/restart", methods=["POST"])
 def restart_sound_machine():
+    """Restart the sound-machine systemd service (the main.py GPIO/audio process).
+    This is separate from the web app — restarting it reloads config and re-connects Bluetooth."""
     result = subprocess.run(
         ["sudo", "systemctl", "restart", "sound-machine"],
         capture_output=True, text=True
@@ -272,18 +365,24 @@ def restart_sound_machine():
     return jsonify({"ok": True})
 
 
+# ── Bluetooth API ──────────────────────────────────────────────────────────────
+
 @app.route("/api/bluetooth/known")
 def bluetooth_known():
+    """Return the list of saved Bluetooth speakers from config.json.
+    Each entry has 'address' (MAC) and 'name'."""
     config = load_config()
     return jsonify(config["bluetooth"].get("known_devices", []))
 
 
 def _parse_bt_devices(output):
+    """Parse bluetoothctl output into a list of {address, name} dicts.
+    Handles both scan event lines ('[NEW] Device AA:BB Name') and
+    'devices' command output ('Device AA:BB Name').
+    Deduplicates by MAC address — keeps the first occurrence."""
     devices = []
     seen = set()
     for line in output.splitlines():
-        # matches both "[NEW] Device XX:XX Name" (scan events) and
-        # "Device XX:XX Name" (devices command output)
         match = re.search(r'Device ([0-9A-Fa-f:]{17}) (.+)', line)
         if match:
             address = match.group(1).upper()
@@ -296,6 +395,12 @@ def _parse_bt_devices(output):
 
 @app.route("/api/bluetooth/scan")
 def bluetooth_scan():
+    """Run an active Bluetooth scan and return newly discovered devices.
+
+    Opens a persistent bluetoothctl interactive session, sends 'scan on',
+    waits for scan_timeout seconds (configurable), then harvests discovered
+    devices with 'devices'. Devices already in known_devices are excluded
+    from the result so the UI only shows truly new speakers."""
     config = load_config()
     scan_timeout = config["bluetooth"].get("scan_timeout", 10)
     known_addresses = {d["address"] for d in config["bluetooth"].get("known_devices", [])}
@@ -321,8 +426,32 @@ def bluetooth_scan():
     return jsonify([d for d in devices if d["address"] not in known_addresses])
 
 
+@app.route("/api/bluetooth/os-devices")
+def bluetooth_os_devices():
+    """Return Bluetooth devices BlueZ already knows about (cached or connected)
+    that aren't in our saved known_devices list.
+    Used to pre-populate the pairing UI without requiring a fresh scan."""
+    config = load_config()
+    known_addresses = {d["address"] for d in config["bluetooth"].get("known_devices", [])}
+    result = subprocess.run(
+        ["sudo", "bluetoothctl", "devices"],
+        capture_output=True, text=True,
+    )
+    devices = _parse_bt_devices(result.stdout)
+    return jsonify([d for d in devices if d["address"] not in known_addresses])
+
+
 def _route_audio_to_bt(address):
-    """Switch PulseAudio output to the BT speaker and move existing streams."""
+    """Switch PulseAudio's output to a Bluetooth speaker by MAC address.
+
+    PulseAudio names BT sinks with underscores instead of colons in the MAC,
+    e.g. F4:4E:FD:1B:D4:97 → bluez_sink.F4_4E_FD_1B_D4_97.a2dp_sink.
+
+    Steps:
+    1. Activate A2DP (high-quality stereo) profile on the BT audio card
+    2. Set that sink as the system-wide default output
+    3. Move any streams already playing to the new sink (handles audio that
+       started before the BT connection was established)"""
     sanitized = address.replace(":", "_")
     pactl = ["sudo", "pactl", "--server", "unix:/run/user/1000/pulse/native"]
     sink = f"bluez_sink.{sanitized}.a2dp_sink"
@@ -340,6 +469,16 @@ def _route_audio_to_bt(address):
 
 @app.route("/api/bluetooth/pair", methods=["POST"])
 def bluetooth_pair():
+    """Pair, trust, and connect a new Bluetooth speaker, then save it to config.
+
+    Accepts JSON: {"address": "AA:BB:CC:DD:EE:FF", "name": "My Speaker"}
+
+    The pairing handshake runs as three sequential blocking calls:
+    1. pair   — exchanges cryptographic keys with the device
+    2. trust  — marks the device so it auto-connects in future sessions
+    3. connect — establishes the audio connection
+
+    If connect succeeds, PulseAudio is immediately routed to the new speaker."""
     data = request.get_json(silent=True)
     if not data or "address" not in data or "name" not in data:
         return jsonify({"error": "missing address or name"}), 400
@@ -350,9 +489,6 @@ def bluetooth_pair():
     if not any(d["address"] == address for d in known):
         known.append({"address": address, "name": name})
         save_config(config)
-    # Full pairing handshake: pair exchanges keys, trust enables auto-connect,
-    # connect establishes the session. Running them as separate blocking calls
-    # ensures each step completes before the next starts.
     try:
         subprocess.run(
             ["sudo", "bluetoothctl", "pair", address],
@@ -381,21 +517,10 @@ def bluetooth_pair():
     return jsonify({"ok": True, "connected": connected})
 
 
-@app.route("/api/bluetooth/os-devices")
-def bluetooth_os_devices():
-    """Devices BlueZ already knows about (connected/cached) that aren't saved in config."""
-    config = load_config()
-    known_addresses = {d["address"] for d in config["bluetooth"].get("known_devices", [])}
-    result = subprocess.run(
-        ["sudo", "bluetoothctl", "devices"],
-        capture_output=True, text=True,
-    )
-    devices = _parse_bt_devices(result.stdout)
-    return jsonify([d for d in devices if d["address"] not in known_addresses])
-
-
 @app.route("/api/bluetooth/device/<address>", methods=["DELETE"])
 def bluetooth_forget(address):
+    """Remove a saved Bluetooth speaker from config and unpair it from the OS.
+    After deletion the device will no longer auto-connect on startup."""
     config = load_config()
     known = config["bluetooth"].get("known_devices", [])
     updated = [d for d in known if d["address"] != address]
@@ -403,13 +528,19 @@ def bluetooth_forget(address):
         return jsonify({"error": "not found"}), 404
     config["bluetooth"]["known_devices"] = updated
     save_config(config)
+    # Disconnect first so the OS doesn't leave a dangling active connection,
+    # then remove so BlueZ forgets the device entirely.
     subprocess.run(["sudo", "bluetoothctl", "disconnect", address], capture_output=True, text=True)
     subprocess.run(["sudo", "bluetoothctl", "remove", address], capture_output=True, text=True)
     return jsonify({"ok": True})
 
 
+# ── Wi-Fi API ──────────────────────────────────────────────────────────────────
+
 @app.route("/api/wifi/status")
 def wifi_status():
+    """Return the currently connected Wi-Fi SSID, or null if not connected.
+    Uses nmcli in terse mode (-t) to get machine-readable output."""
     result = subprocess.run(
         ["sudo", "nmcli", "-t", "-f", "ACTIVE,SSID", "device", "wifi"],
         capture_output=True, text=True,
@@ -422,10 +553,16 @@ def wifi_status():
 
 
 def _parse_wifi_scan(stdout):
+    """Parse nmcli Wi-Fi scan output into a sorted list of network dicts.
+
+    nmcli -t -f SSID,SIGNAL,SECURITY output uses colons as field separators
+    but also escapes literal colons in SSIDs as \:. We rsplit from the right
+    to correctly handle SSIDs containing colons.
+
+    Returns networks sorted by signal strength (strongest first), deduplicated by SSID."""
     networks = []
     seen = set()
     for line in stdout.strip().splitlines():
-        # Split from right so colons in SSID (escaped as \: by nmcli) are handled
         parts = line.rsplit(":", 2)
         if len(parts) != 3:
             continue
@@ -445,13 +582,16 @@ def _parse_wifi_scan(stdout):
 
 @app.route("/api/wifi/scan")
 def wifi_scan():
+    """Return available Wi-Fi networks sorted by signal strength.
+
+    Tries a forced rescan first (--rescan yes) for fresh results. Falls back
+    to NetworkManager's cached scan list if the forced scan fails or returns
+    nothing (which happens in hotspot mode or when the adapter is busy)."""
     result = subprocess.run(
         ["sudo", "nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY", "device", "wifi", "list", "--rescan", "yes"],
         capture_output=True, text=True,
     )
     networks = _parse_wifi_scan(result.stdout)
-    # In hotspot mode the forced rescan may fail or return nothing — fall back
-    # to NetworkManager's cached scan results which are still available
     if not networks:
         result = subprocess.run(
             ["sudo", "nmcli", "-t", "-f", "SSID,SIGNAL,SECURITY", "device", "wifi", "list"],
@@ -462,19 +602,32 @@ def wifi_scan():
 
 
 def _schedule_reboot():
+    """Trigger a system reboot 2 seconds from now via a background thread.
+    The delay gives the HTTP response time to reach the client before the
+    network interface disappears."""
     threading.Timer(2.0, lambda: subprocess.run(["sudo", "systemctl", "reboot"])).start()
 
 
 @app.route("/api/wifi/connect", methods=["POST"])
 def wifi_connect():
+    """Connect to a Wi-Fi network and reboot the Pi to apply the new connection.
+
+    Accepts JSON: {"ssid": "MyNetwork", "password": "secret"} (password optional for open networks).
+
+    Before creating the new connection profile:
+    1. Delete any existing profiles with the same SSID — stale profiles can have
+       a mismatched key-mgmt setting that causes 'property is missing' errors.
+    2. Explicitly set key-mgmt (wpa-psk vs none) rather than relying on nmcli to
+       infer it from its scan cache — inference fails on 5 GHz or uncached APs.
+
+    Schedules a reboot after success so the new network is used for all services."""
     data = request.get_json(silent=True)
     if not data or "ssid" not in data:
         return jsonify({"error": "missing ssid"}), 400
     ssid = data["ssid"]
     password = data.get("password", "")
-    # Delete any existing profiles for this SSID by UUID (matching on the SSID
-    # field value rather than connection name avoids silently missing stale profiles
-    # whose name doesn't match the SSID, which causes "key-mgmt: property is missing")
+    # Find and delete stale profiles by matching on the 802-11-WIRELESS.SSID field value,
+    # not the connection name — the name may differ from the SSID for old saved connections.
     lookup = subprocess.run(
         ["sudo", "nmcli", "-t", "-f", "UUID,802-11-WIRELESS.SSID", "connection", "show"],
         capture_output=True, text=True,
@@ -484,8 +637,6 @@ def wifi_connect():
         if len(parts) == 2 and parts[1].replace("\\:", ":") == ssid:
             subprocess.run(["sudo", "nmcli", "connection", "delete", "uuid", parts[0]],
                            capture_output=True, text=True)
-    # Explicitly specify key-mgmt rather than relying on nmcli to infer it from
-    # its scan cache — inference fails when the AP isn't cached (common on 5GHz)
     add_cmd = ["sudo", "nmcli", "connection", "add", "type", "wifi",
                "con-name", ssid, "ssid", ssid, "connection.autoconnect", "yes"]
     if password:
