@@ -128,10 +128,8 @@ function renderMusicContent(container) {
       <div class="field-label">Pick a track to add</div>
       <select class="field-select" id="music-library-select" onchange="onMusicLibrarySelect(this)">
         <option value="">— pick a track —</option>
-        <option value="__upload__">Upload new file…</option>
       </select>
     </div>
-    <input type="file" id="upload-input" accept=".ogg,.mp3,.wav" style="display:none" onchange="onUpload('music')">
   `;
 }
 
@@ -140,9 +138,7 @@ function renderSingleContent(container) {
     <div class="field-label">Sound file</div>
     <select class="field-select" id="single-library-select" onchange="onSingleSelect(this)">
       <option value="">— none —</option>
-      <option value="__upload__">Upload new file…</option>
     </select>
-    <input type="file" id="upload-input" accept=".ogg,.mp3,.wav" style="display:none" onchange="onUpload('${activeGroup}')">
   `;
 }
 
@@ -187,11 +183,6 @@ function toggleLibraryPicker() {
 }
 
 function onMusicLibrarySelect(select) {
-  if (select.value === '__upload__') {
-    select.value = '';
-    document.getElementById('upload-input').click();
-    return;
-  }
   if (!select.value) return;
   const path = select.value;
   if (!pendingTracks.includes(path)) pendingTracks.push(path);
@@ -204,11 +195,6 @@ function onMusicLibrarySelect(select) {
 }
 
 function onSingleSelect(select) {
-  if (select.value === '__upload__') {
-    select.value = pendingPath || '';
-    document.getElementById('upload-input').click();
-    return;
-  }
   pendingPath = select.value || null;
   if (pendingPath) {
     document.getElementById('label-input').value = fileLabel(pendingPath);
@@ -219,32 +205,6 @@ function removeTrack(index) {
   pendingTracks.splice(index, 1);
   renderMusicContent(document.getElementById('panel-content'));
   loadLibrary('music').then(populateMusicSelect);
-}
-
-// ── File upload ───────────────────────────────────────────────────────────────
-
-async function onUpload(group) {
-  const input = document.getElementById('upload-input');
-  const file = input.files[0];
-  if (!file) return;
-  const formData = new FormData();
-  formData.append('file', file);
-  const resp = await apiFetch(`/api/upload/${group}`, { method: 'POST', body: formData });
-  if (!resp) { input.value = ''; return; }
-  const data = await resp.json();
-  delete library[group];
-  showToast(`Uploaded: ${file.name}`, 'success');
-  input.value = '';
-  if (group === 'music') {
-    pendingTracks.push(data.path);
-    const files = await loadLibrary(group);
-    renderMusicContent(document.getElementById('panel-content'));
-    populateMusicSelect(files);
-  } else {
-    pendingPath = data.path;
-    const files = await loadLibrary(group);
-    populateSingleSelect(files, pendingPath);
-  }
 }
 
 // ── Save / Cancel ─────────────────────────────────────────────────────────────
