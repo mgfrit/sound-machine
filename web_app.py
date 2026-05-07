@@ -13,6 +13,7 @@ CONFIG_PATH = Path(__file__).parent / "config.json"
 SOUNDS_DIR = Path(__file__).parent / "sounds"
 ALLOWED_EXTENSIONS = {".wav", ".ogg", ".mp3"}
 VALID_GROUPS = {"music", "ambiance", "effects"}
+RUNE_NAMES = ["Rune I", "Rune II", "Rune III", "Rune IV", "Rune V", "Rune VI"]
 
 
 def _migrate_config(config):
@@ -25,6 +26,9 @@ def _migrate_config(config):
         if isinstance(slot, str):
             config["sounds"]["music"][i] = [slot]
             dirty = True
+    if "file_labels" not in config:
+        config["file_labels"] = {}
+        dirty = True
     bt = config.setdefault("bluetooth", {})
     if "saved_device_address" in bt:
         addr = bt.pop("saved_device_address")
@@ -82,6 +86,7 @@ def get_config():
         "sounds": config["sounds"],
         "available": {g: available_files(g) for g in VALID_GROUPS},
         "button_labels": config["button_labels"],
+        "file_labels": config.get("file_labels", {}),
     })
 
 
@@ -162,7 +167,98 @@ def upload_sound(group):
         return jsonify({"error": f"unsupported format — use {ALLOWED_EXTENSIONS}"}), 400
     dest = SOUNDS_DIR / group / Path(f.filename).name
     f.save(dest)
-    return jsonify({"ok": True, "path": str(dest.relative_to(SOUNDS_DIR.parent))})
+    path_str = str(dest.relative_to(SOUNDS_DIR.parent))
+    default_label = Path(f.filename).stem.replace("_", " ").replace("-", " ")
+    config = load_config()
+    config.setdefault("file_labels", {}).setdefault(path_str, default_label)
+    save_config(config)
+    return jsonify({"ok": True, "path": path_str})
+
+
+@app.route("/library")
+def library_page():
+    return send_from_directory("static", "library.html")
+
+
+@app.route("/sounds/<path:filename>")
+def serve_sound(filename):
+    return send_from_directory(str(SOUNDS_DIR), filename)
+
+
+def _build_library(config):
+    file_labels = config.get("file_labels", {})
+    result = {}
+    for group in VALID_GROUPS:
+        files = []
+        for path_str in available_files(group):
+            slots = []
+            for idx, slot in enumerate(config["sounds"][group]):
+                if group == "music":
+                    if isinstance(slot, list) and path_str in slot:
+                        slots.append({"group": group, "index": idx, "rune": RUNE_NAMES[idx]})
+                else:
+                    if slot == path_str:
+                        slots.append({"group": group, "index": idx, "rune": RUNE_NAMES[idx]})
+            label = file_labels.get(path_str, Path(path_str).stem)
+            files.append({"path": path_str, "label": label, "slots": slots})
+        result[group] = files
+    return result
+
+
+@app.route("/api/library")
+def get_library():
+    config = load_config()
+    return jsonify(_build_library(config))
+
+
+@app.route("/api/library/label", methods=["PUT"])
+def update_file_label():
+    data = request.get_json(silent=True)
+    if not data or "path" not in data or "label" not in data:
+        return jsonify({"error": "missing path or label"}), 400
+    path = data["path"]
+    new_label = str(data["label"]).strip()
+    if not new_label:
+        return jsonify({"error": "label cannot be empty"}), 400
+    config = load_config()
+    old_label = config.get("file_labels", {}).get(path)
+    config.setdefault("file_labels", {})[path] = new_label
+    updated_slots = []
+    if old_label:
+        for idx, lbl in enumerate(config["button_labels"]):
+            if lbl == old_label:
+                config["button_labels"][idx] = new_label
+                updated_slots.append(idx)
+    save_config(config)
+    return jsonify({"ok": True, "updated_slots": updated_slots})
+
+
+@app.route("/api/library/file", methods=["DELETE"])
+def delete_library_file():
+    path_str = request.args.get("path")
+    if not path_str:
+        return jsonify({"error": "missing path query parameter"}), 400
+    file_path = SOUNDS_DIR.parent / path_str
+    if not file_path.exists():
+        return jsonify({"error": "file not found"}), 404
+    file_path.unlink()
+    config = load_config()
+    cleared_slots = []
+    for group in VALID_GROUPS:
+        for idx, slot in enumerate(config["sounds"][group]):
+            if group == "music":
+                if isinstance(slot, list) and path_str in slot:
+                    slot.remove(path_str)
+                    if not slot:
+                        config["sounds"][group][idx] = None
+                    cleared_slots.append({"group": group, "index": idx})
+            else:
+                if slot == path_str:
+                    config["sounds"][group][idx] = None
+                    cleared_slots.append({"group": group, "index": idx})
+    config.get("file_labels", {}).pop(path_str, None)
+    save_config(config)
+    return jsonify({"ok": True, "cleared_slots": cleared_slots})
 
 
 @app.route("/api/restart", methods=["POST"])

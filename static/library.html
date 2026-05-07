@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sound Machine — Library</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Cinzel+Decorative:wght@400;700&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+
+<nav>
+  <div class="brand-block">
+    <span class="brand">⚔ Sound Machine</span>
+    <span id="wifi-indicator" class="wifi-nav-status"></span>
+  </div>
+  <a href="/static/instructions.html">Lore</a>
+  <a href="/">Board</a>
+  <a href="/library" class="active">Library</a>
+  <a href="/wifi">The Weave</a>
+</nav>
+
+<main>
+  <h1>📚 Sound Library</h1>
+  <p class="subtitle">Manage your sound files, set labels, and preview before assigning.</p>
+
+  <div class="lib-tabs">
+    <button class="lib-tab active" data-group="music" onclick="switchTab('music')">🎵 Music</button>
+    <button class="lib-tab" data-group="ambiance" onclick="switchTab('ambiance')">🌿 Ambiance</button>
+    <button class="lib-tab" data-group="effects" onclick="switchTab('effects')">⚡ Effects</button>
+  </div>
+
+  <div class="lib-panel">
+    <div class="lib-upload-bar">
+      <button class="btn-ghost" onclick="triggerUpload()">+ Upload File</button>
+      <span class="lib-upload-hint">Accepted: .wav · .ogg · .mp3</span>
+      <input type="file" id="file-input" accept=".wav,.ogg,.mp3" style="display:none" onchange="handleUpload(this)">
+    </div>
+
+    <table class="lib-table">
+      <thead>
+        <tr>
+          <th>Label</th>
+          <th>Filename</th>
+          <th>Assigned to</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="lib-tbody"></tbody>
+    </table>
+
+    <div class="lib-player" id="lib-player" hidden>
+      <span>Now previewing:</span>
+      <span class="lib-player-name" id="player-name"></span>
+      <audio id="audio-player" controls></audio>
+    </div>
+  </div>
+</main>
+
+<script src="/static/utils.js"></script>
+<script src="/static/library.js"></script>
+<script>
+  fetch('/api/wifi/status').then(r => r.json()).then(d => {
+    const el = document.getElementById('wifi-indicator');
+    if (d.ssid) { el.textContent = '● ' + d.ssid; el.className = 'wifi-nav-status connected'; }
+    else         { el.textContent = '● No network'; el.className = 'wifi-nav-status disconnected'; }
+  }).catch(() => {});
+</script>
+</body>
+</html>

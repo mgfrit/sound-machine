@@ -157,11 +157,15 @@ async function loadLibrary(group) {
   return library[group];
 }
 
+function fileLabel(path) {
+  return (config.file_labels || {})[path] || path.split('/').pop();
+}
+
 function populateMusicSelect(files) {
   const select = document.getElementById('music-library-select');
   if (!select) return;
   while (select.options.length > 2) select.remove(2);
-  files.forEach(f => select.add(new Option(f.split('/').pop(), f)));
+  files.forEach(f => select.add(new Option(fileLabel(f), f)));
 }
 
 function populateSingleSelect(files, currentPath) {
@@ -169,7 +173,7 @@ function populateSingleSelect(files, currentPath) {
   if (!select) return;
   while (select.options.length > 2) select.remove(2);
   files.forEach(f => {
-    const opt = new Option(f.split('/').pop(), f);
+    const opt = new Option(fileLabel(f), f);
     if (f === currentPath) opt.selected = true;
     select.add(opt);
   });
@@ -191,6 +195,9 @@ function onMusicLibrarySelect(select) {
   if (!select.value) return;
   const path = select.value;
   if (!pendingTracks.includes(path)) pendingTracks.push(path);
+  if (pendingTracks.length === 1) {
+    document.getElementById('label-input').value = fileLabel(path);
+  }
   select.value = '';
   renderMusicContent(document.getElementById('panel-content'));
   loadLibrary('music').then(populateMusicSelect);
@@ -203,6 +210,9 @@ function onSingleSelect(select) {
     return;
   }
   pendingPath = select.value || null;
+  if (pendingPath) {
+    document.getElementById('label-input').value = fileLabel(pendingPath);
+  }
 }
 
 function removeTrack(index) {
