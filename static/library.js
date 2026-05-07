@@ -63,7 +63,7 @@ function fileRow(f) {
       <button class="lib-action-btn"
         onclick="startRename(${attr(f.path)}, ${attr(f.label)})">✎ Rename</button>
       <button class="lib-action-btn danger"
-        onclick="deleteFile(${attr(f.path)}, ${attr(f.slots)})">🗑</button>
+        onclick="deleteFile(${attr(f.path)}, ${attr(f.slots)})">🗑️</button>
     </td>
   </tr>`;
 }
